@@ -20,6 +20,7 @@ saved on End Meeting, then transcribed and analyzed asynchronously.
    - `0002_rls.sql` — row level security + private `recordings` storage bucket
    - `0003_reminders.sql`
    - `0004_settings.sql`
+   - `0005_recordings_update_policy.sql` — allows retrying a failed recording upload
 3. Copy `.env.example` to `.env.local` and fill in:
    - Supabase URL/keys (Project Settings → API)
    - `GEMINI_API_KEY` (required — powers transcription and all summarization, from [aistudio.google.com](https://aistudio.google.com/apikey))
@@ -36,6 +37,8 @@ npm run dev
 ```bash
 npx inngest-cli dev
 ```
+
+   Leave `INNGEST_EVENT_KEY`/`INNGEST_SIGNING_KEY` empty for local dev — `INNGEST_DEV=1` (set in `.env.example`) routes events to this local dev server instead of Inngest Cloud. Only fill those keys in for a production deployment.
 
 6. Sign up at `/signup`. From the Dashboard, click **Load Demo Data** to populate 6 realistic completed meetings (per the product spec) so the app doesn't look empty on first run.
 
