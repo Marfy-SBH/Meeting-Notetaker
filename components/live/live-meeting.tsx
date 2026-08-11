@@ -33,7 +33,10 @@ export function LiveMeeting() {
 
   useEffect(() => {
     function handleBeforeUnload(e: BeforeUnloadEvent) {
-      if (liveStatus === "recording" || liveStatus === "paused") {
+      // "uploading" also covers the upload-error/retry screen — liveStatus is
+      // never reset after a failed upload, and the unsaved audio still only
+      // lives in this tab's memory until the upload actually succeeds.
+      if (liveStatus === "recording" || liveStatus === "paused" || liveStatus === "uploading") {
         e.preventDefault();
         e.returnValue = "";
       }
