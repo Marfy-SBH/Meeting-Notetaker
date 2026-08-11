@@ -31,7 +31,17 @@ export async function finalizeMeeting(meetingId: string, recordingPath: string, 
   const supabase = await createClient();
   const meetingService = new MeetingService(supabase);
   await meetingService.finalizeRecording(meetingId, recordingPath, durationSeconds);
-  await triggerMeetingProcessing(meetingId);
+
+  // The recording itself is already saved at this point — a failure to kick off
+  // AI processing is a separate, retryable problem (see ProcessingBanner), not
+  // an upload failure. Don't let it bubble up and make the client think the
+  // recording was lost.
+  try {
+    await triggerMeetingProcessing(meetingId);
+  } catch (err) {
+    console.error(`Failed to trigger processing for meeting ${meetingId}:`, err);
+    await meetingService.markFailed(meetingId, err instanceof Error ? err.message : "Failed to start AI processing.");
+  }
 }
 
 export async function cancelMeeting(meetingId: string) {

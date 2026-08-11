@@ -123,7 +123,8 @@ export function LiveMeeting() {
 
       await finalizeMeeting(meetingId, path, finalDurationSeconds);
       router.push(`/meetings/${meetingId}`);
-    } catch {
+    } catch (err) {
+      console.error("Failed to upload recording:", err);
       setPhase("upload-error");
       setEndDialogOpen(false);
     } finally {
