@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { PlayCircle, Calendar, Plug, Settings, ChevronRight } from "lucide-react";
+import { Calendar, Plug, Settings, ChevronRight } from "lucide-react";
 
 const ITEMS = [
-  { href: "/recordings", label: "Recordings", icon: PlayCircle },
   { href: "/calendar", label: "Calendar", icon: Calendar },
   { href: "/integrations", label: "Integrations", icon: Plug },
   { href: "/settings", label: "Settings", icon: Settings },

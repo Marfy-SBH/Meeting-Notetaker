@@ -6,8 +6,6 @@ import {
   LayoutDashboard,
   CalendarDays,
   Mic,
-  FileText,
-  PlayCircle,
   Calendar,
   Plug,
   Settings,
@@ -18,8 +16,6 @@ const MAIN_NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/meetings", label: "Meetings", icon: CalendarDays },
   { href: "/live", label: "Live Meeting", icon: Mic },
-  { href: "/notes", label: "Notes", icon: FileText },
-  { href: "/recordings", label: "Recordings", icon: PlayCircle },
 ];
 
 const WORKSPACE_NAV = [

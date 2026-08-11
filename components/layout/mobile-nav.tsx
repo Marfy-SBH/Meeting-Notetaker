@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, CalendarDays, Mic, FileText, MoreHorizontal } from "lucide-react";
+import { Home, CalendarDays, Mic, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ITEMS = [
   { href: "/dashboard", label: "Home", icon: Home },
   { href: "/meetings", label: "Meetings", icon: CalendarDays },
   { href: "/live", label: "Start", icon: Mic, emphasize: true },
-  { href: "/notes", label: "Notes", icon: FileText },
   { href: "/more", label: "More", icon: MoreHorizontal },
 ];
 
