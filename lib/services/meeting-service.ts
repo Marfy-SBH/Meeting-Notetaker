@@ -76,7 +76,7 @@ export class MeetingService {
       })
       .select()
       .single();
-    if (error) throw error;
+    if (error) throw new Error(`Failed to create meeting: ${error.message}`);
     return data;
   }
 

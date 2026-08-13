@@ -25,7 +25,12 @@ export class StorageService {
       contentType: file.type || "audio/webm",
       upsert: true,
     });
-    if (error) throw error;
+    // Re-throwing the raw StorageError class instance here (rather than a
+    // plain Error) breaks once this runs inside a Server Action reachable
+    // directly from the client — Next.js's Flight serializer rejects thrown
+    // class instances crossing that boundary with an opaque "Only plain
+    // objects... Classes... not supported" error, hiding the real cause.
+    if (error) throw new Error(`Failed to upload to storage path "${path}": ${error.message}`);
     return path;
   }
 
@@ -51,7 +56,7 @@ export class StorageService {
     const { data: objects, error: listError } = await this.supabase.storage
       .from(BUCKET)
       .list(prefix, { limit: expectedChunkCount + 10 });
-    if (listError) throw listError;
+    if (listError) throw new Error(`Failed to list recording chunks: ${listError.message}`);
 
     const foundSeqs = new Set((objects ?? []).map((o) => parseInt(o.name.replace(/\.webm$/, ""), 10)));
     const missing: number[] = [];
@@ -91,12 +96,12 @@ export class StorageService {
 
   async getSignedUrl(path: string, expiresInSeconds = 3600) {
     const { data, error } = await this.supabase.storage.from(BUCKET).createSignedUrl(path, expiresInSeconds);
-    if (error) throw error;
+    if (error) throw new Error(`Failed to create signed URL for "${path}": ${error.message}`);
     return data.signedUrl;
   }
 
   async deleteRecording(path: string) {
     const { error } = await this.supabase.storage.from(BUCKET).remove([path]);
-    if (error) throw error;
+    if (error) throw new Error(`Failed to delete recording "${path}": ${error.message}`);
   }
 }

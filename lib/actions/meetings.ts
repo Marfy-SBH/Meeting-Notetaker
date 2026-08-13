@@ -19,7 +19,7 @@ export async function assertUnderDailyRecordingLimit(supabase: SupabaseClient, u
     .gte("started_at", startOfDayInAppTz(now).toISOString())
     .lte("started_at", endOfDayInAppTz(now).toISOString());
 
-  if (error) throw error;
+  if (error) throw new Error(`Failed to check today's recording count: ${error.message}`);
   if ((count ?? 0) >= MAX_MEETINGS_PER_DAY) {
     throw new Error(
       `You've reached today's limit of ${MAX_MEETINGS_PER_DAY} recorded meetings. This resets at midnight.`
