@@ -1,15 +1,81 @@
 // Single point of contact with the LLM provider. Swap providers here only —
 // nothing outside this file should import an AI SDK directly.
 import { GoogleGenAI } from "@google/genai";
+import type { AiProvider } from "@/lib/types";
 
 // "gemini-2.5-flash" was retired for new API keys; the "-latest" alias tracks
 // whatever the current low-cost flash model is without needing code changes.
-const MODEL = "gemini-flash-latest";
+const GEMINI_MODEL = "gemini-flash-latest";
+const OPENAI_MODEL = "gpt-4o-mini";
+const ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929";
 
-let client: GoogleGenAI | null = null;
-function getClient() {
-  if (!client) client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  return client;
+// A workspace member's saved provider + API key (Integrations tab), falling
+// back to the GEMINI_API_KEY env var when nothing has been configured.
+export interface ProviderConfig {
+  provider: AiProvider;
+  apiKey: string;
+}
+
+let geminiClient: GoogleGenAI | null = null;
+function getGeminiClient(apiKey?: string) {
+  if (apiKey) return new GoogleGenAI({ apiKey });
+  if (!geminiClient) geminiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  return geminiClient;
+}
+
+async function generateWithGemini(apiKey: string | undefined, systemInstruction: string, prompt: string) {
+  const response = await getGeminiClient(apiKey).models.generateContent({
+    model: GEMINI_MODEL,
+    contents: prompt,
+    config: { systemInstruction, responseMimeType: "application/json" },
+  });
+  return response.text ?? "";
+}
+
+async function generateWithOpenAi(apiKey: string, systemInstruction: string, prompt: string) {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: systemInstruction },
+        { role: "user", content: prompt },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`OpenAI request failed (${res.status}): ${await res.text()}`);
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content ?? "";
+}
+
+async function generateWithAnthropic(apiKey: string, systemInstruction: string, prompt: string) {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: ANTHROPIC_MODEL,
+      max_tokens: 4096,
+      system: systemInstruction,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+  if (!res.ok) throw new Error(`Anthropic request failed (${res.status}): ${await res.text()}`);
+  const data = await res.json();
+  return data.content?.[0]?.text ?? "";
+}
+
+async function generate(config: ProviderConfig | undefined, systemInstruction: string, prompt: string) {
+  if (!config || config.provider === "gemini") {
+    return generateWithGemini(config?.apiKey, systemInstruction, prompt);
+  }
+  if (config.provider === "openai") return generateWithOpenAi(config.apiKey, systemInstruction, prompt);
+  return generateWithAnthropic(config.apiKey, systemInstruction, prompt);
 }
 
 export interface TranscriptLine {
@@ -87,7 +153,11 @@ Timestamps are in seconds from meeting start, taken from the [m:ss] markers in t
 
 export async function analyzeMeeting(
   lines: TranscriptLine[],
-  opts?: { meetingTitle?: string; summaryLength?: "brief" | "standard" | "detailed" }
+  opts?: {
+    meetingTitle?: string;
+    summaryLength?: "brief" | "standard" | "detailed";
+    providerConfig?: ProviderConfig;
+  }
 ): Promise<MeetingAnalysis> {
   const transcript = transcriptToText(lines);
   const lengthHint =
@@ -97,23 +167,17 @@ export async function analyzeMeeting(
         ? "Write a thorough summary (multiple sentences, still one tight paragraph) in each language."
         : "Keep the summary to 3-5 sentences in each language.";
 
-  const response = await getClient().models.generateContent({
-    model: MODEL,
-    contents: `Analyze the transcript of a meeting titled "${opts?.meetingTitle ?? "Untitled Meeting"}".
+  const prompt = `Analyze the transcript of a meeting titled "${opts?.meetingTitle ?? "Untitled Meeting"}".
 ${lengthHint}
 Extract key discussion points, decisions made, action items (with assignee and due date if mentioned), and important moments worth jumping back to. Also produce structured meeting minutes.
 
 ${ANALYSIS_SCHEMA_HINT}
 
 Transcript:
-${transcript}`,
-    config: {
-      systemInstruction: SYSTEM_INSTRUCTION,
-      responseMimeType: "application/json",
-    },
-  });
+${transcript}`;
 
-  return parseAnalysis(response.text ?? "");
+  const raw = await generate(opts?.providerConfig, SYSTEM_INSTRUCTION, prompt);
+  return parseAnalysis(raw);
 }
 
 const EMPTY_MINUTES: MinutesContent = { agenda: [], discussion: "", decisions: [], actionItems: [] };

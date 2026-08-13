@@ -20,7 +20,10 @@ export async function updateWorkspaceName(formData: FormData) {
   revalidatePath("/settings");
 }
 
-export async function updateSettingsSection(section: "recording" | "ai" | "notifications", patch: Record<string, unknown>) {
+export async function updateSettingsSection(
+  section: "recording" | "ai" | "notifications" | "aiConfig",
+  patch: Record<string, unknown>
+) {
   const { user } = await getCurrentUserAndWorkspace();
   const supabase = await createClient();
   const { data: profile } = await supabase.from("profiles").select("settings").eq("id", user.id).single();
@@ -28,4 +31,5 @@ export async function updateSettingsSection(section: "recording" | "ai" | "notif
   const updated = { ...current, [section]: { ...(current[section] ?? {}), ...patch } };
   await supabase.from("profiles").update({ settings: updated }).eq("id", user.id);
   revalidatePath("/settings");
+  revalidatePath("/integrations");
 }

@@ -84,8 +84,17 @@ export const processMeeting = inngest.createFunction(
 
       const analysis = await step.run("analyze", async () => {
         await meetings.updateProcessingStep(meetingId, "summarizing");
+        const { data: hostProfile } = await supabase
+          .from("profiles")
+          .select("settings")
+          .eq("id", meeting.created_by)
+          .single();
+        const aiConfig = (hostProfile?.settings as any)?.aiConfig;
+        const providerConfig =
+          aiConfig?.provider && aiConfig?.apiKey ? { provider: aiConfig.provider, apiKey: aiConfig.apiKey } : undefined;
+
         const analysisService = new AIAnalysisService(supabase);
-        const result = await analysisService.analyze(transcriptLines, { meetingTitle: meeting.title });
+        const result = await analysisService.analyze(transcriptLines, { meetingTitle: meeting.title, providerConfig });
 
         await meetings.updateProcessingStep(meetingId, "action_items");
         await analysisService.persist(meetingId, result);

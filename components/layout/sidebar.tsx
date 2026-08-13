@@ -56,7 +56,7 @@ export function Sidebar() {
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
   return (
-    <aside className="hidden h-screen w-[232px] shrink-0 flex-col border-r border-border bg-sidebar lg:flex">
+    <aside className="sticky top-0 hidden h-screen w-[232px] shrink-0 flex-col overflow-y-auto border-r border-border bg-sidebar lg:flex">
       <div className="flex items-center gap-2 px-5 py-5">
         <div className="flex h-8 w-8 items-center justify-center rounded-control bg-primary text-primary-foreground">
           <Mic className="h-4 w-4" />

@@ -1,12 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { analyzeMeeting, type TranscriptLine, type MeetingAnalysis } from "@/lib/ai/summarize";
+import { analyzeMeeting, type TranscriptLine, type MeetingAnalysis, type ProviderConfig } from "@/lib/ai/summarize";
 
 export class AIAnalysisService {
   constructor(private supabase: SupabaseClient) {}
 
   async analyze(
     lines: TranscriptLine[],
-    opts?: { meetingTitle?: string; summaryLength?: "brief" | "standard" | "detailed" }
+    opts?: { meetingTitle?: string; summaryLength?: "brief" | "standard" | "detailed"; providerConfig?: ProviderConfig }
   ): Promise<MeetingAnalysis> {
     return analyzeMeeting(lines, opts);
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Search, Bell } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
@@ -15,13 +15,17 @@ import {
 import { NotificationPanel } from "@/components/layout/notification-panel";
 import { GlobalSearch } from "@/components/layout/global-search";
 import { signOut } from "@/lib/actions/auth";
+import { createClient } from "@/lib/supabase/client";
+import { playNotificationSound, unlockNotificationSound } from "@/lib/notification-sound";
 import type { Notification } from "@/lib/types";
+
+const POLL_INTERVAL_MS = 15_000;
 
 export function Header({
   userName,
   userEmail,
   avatarUrl,
-  notifications,
+  notifications: initialNotifications,
 }: {
   userName: string;
   userEmail: string;
@@ -29,7 +33,57 @@ export function Header({
   notifications: Notification[];
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
+  const [notifications, setNotifications] = useState(initialNotifications);
+  const seenIds = useRef(new Set(initialNotifications.map((n) => n.id)));
   const unread = notifications.filter((n) => !n.read).length;
+
+  useEffect(() => {
+    setNotifications(initialNotifications);
+    initialNotifications.forEach((n) => seenIds.current.add(n.id));
+  }, [initialNotifications]);
+
+  useEffect(() => {
+    const unlock = () => unlockNotificationSound();
+    window.addEventListener("pointerdown", unlock, { once: true });
+    window.addEventListener("keydown", unlock, { once: true });
+
+    const supabase = createClient();
+    let cancelled = false;
+
+    async function poll() {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user || cancelled) return;
+
+      const { data } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", userData.user.id)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (!data || cancelled) return;
+
+      const fresh = data.filter((n) => !seenIds.current.has(n.id));
+      if (fresh.length > 0) {
+        fresh.forEach((n) => seenIds.current.add(n.id));
+        playNotificationSound();
+        setNotifications((prev) => {
+          const byId = new Map(prev.map((n) => [n.id, n]));
+          for (const n of data as Notification[]) byId.set(n.id, n);
+          return Array.from(byId.values()).sort(
+            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+        });
+      }
+    }
+
+    const interval = setInterval(poll, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+  }, []);
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur sm:px-6">

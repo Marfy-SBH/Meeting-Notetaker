@@ -6,8 +6,10 @@ import { getCurrentUserAndWorkspace } from "@/lib/data/current";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MeetingRow } from "@/components/meetings/meeting-row";
+import { UpcomingMeetingCard } from "@/components/meetings/upcoming-meeting-card";
+import { ScheduleMeetingDialog } from "@/components/calendar/schedule-meeting-dialog";
 import { SeedDemoButton } from "@/components/dashboard/seed-demo-button";
-import { groupMeetingsByDate, isUpcoming } from "@/lib/meeting-grouping";
+import { groupMeetingsByDate, isUpcoming, meetingDateTime } from "@/lib/meeting-grouping";
 import { formatDuration } from "@/lib/utils";
 import type { Meeting, Participant } from "@/lib/types";
 
@@ -22,7 +24,7 @@ export default async function DashboardPage() {
     .order("started_at", { ascending: false, nullsFirst: false });
 
   const all = (meetings ?? []) as (Meeting & { participants: Participant[] })[];
-  const upcoming = all.filter(isUpcoming);
+  const upcoming = all.filter(isUpcoming).sort((a, b) => meetingDateTime(a).getTime() - meetingDateTime(b).getTime());
   const completed = all.filter((m) => m.status === "completed");
   const totalDurationSec = completed.reduce((sum, m) => sum + (m.duration ?? 0), 0);
 
@@ -48,21 +50,6 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {kpis.map((k) => (
-          <Card key={k.label}>
-            <CardContent className="flex flex-col gap-2 p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">{k.label}</span>
-                <k.icon className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <span className="text-2xl font-semibold text-foreground">{k.value}</span>
-              <span className="text-xs text-muted-foreground">{k.sub}</span>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
       <Card className="border-primary/20 bg-gradient-to-br from-primary/[0.04] to-transparent">
         <CardContent className="flex flex-col items-start justify-between gap-4 p-6 sm:flex-row sm:items-center">
           <div>
@@ -72,11 +59,13 @@ export default async function DashboardPage() {
             </p>
           </div>
           <div className="flex shrink-0 gap-2">
-            <Button variant="secondary" asChild>
-              <Link href="/calendar">
-                <CalendarPlus className="h-4 w-4" /> Schedule Meeting
-              </Link>
-            </Button>
+            <ScheduleMeetingDialog
+              trigger={
+                <Button variant="secondary">
+                  <CalendarPlus className="h-4 w-4" /> Schedule Meeting
+                </Button>
+              }
+            />
             <Button asChild>
               <Link href="/live">
                 <Mic className="h-4 w-4" /> Start Meeting
@@ -86,52 +75,67 @@ export default async function DashboardPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Upcoming Meetings</h2>
-            <Link href="/meetings" className="text-xs font-medium text-primary hover:underline">
-              View all
-            </Link>
-          </div>
-          {upcoming.length === 0 ? (
-            <EmptyMeetings />
-          ) : (
-            <div className="flex flex-col gap-2">
-              {upcoming.slice(0, 5).map((m) => (
-                <MeetingRow key={m.id} meeting={m} />
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Recent Meetings</h2>
-            <Link href="/meetings" className="text-xs font-medium text-primary hover:underline">
-              View all
-            </Link>
-          </div>
-          {recentGroups.length === 0 ? (
-            <EmptyMeetings />
-          ) : (
-            <div className="flex flex-col gap-4">
-              {recentGroups.map((group) => (
-                <div key={group.label}>
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground/80">
-                    {group.label}
-                  </p>
-                  <div className="flex flex-col gap-2">
-                    {group.items.map((m) => (
-                      <MeetingRow key={m.id} meeting={m} />
-                    ))}
-                  </div>
+      <div className="rounded-card bg-primary/[0.06] p-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {kpis.map((k) => (
+            <Card key={k.label}>
+              <CardContent className="flex flex-col gap-2 p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">{k.label}</span>
+                  <k.icon className="h-4 w-4 text-muted-foreground" />
                 </div>
-              ))}
-            </div>
-          )}
-        </section>
+                <span className="text-2xl font-semibold text-foreground">{k.value}</span>
+                <span className="text-xs text-muted-foreground">{k.sub}</span>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
+
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-foreground">Upcoming Meetings</h2>
+          <Link href="/meetings" className="text-xs font-medium text-primary hover:underline">
+            View all
+          </Link>
+        </div>
+        {upcoming.length === 0 ? (
+          <EmptyMeetings />
+        ) : (
+          <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
+            {upcoming.map((m) => (
+              <UpcomingMeetingCard key={m.id} meeting={m} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-foreground">Recent Meetings</h2>
+          <Link href="/meetings" className="text-xs font-medium text-primary hover:underline">
+            View all
+          </Link>
+        </div>
+        {recentGroups.length === 0 ? (
+          <EmptyMeetings />
+        ) : (
+          <div className="flex flex-col gap-4">
+            {recentGroups.map((group) => (
+              <div key={group.label}>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground/80">
+                  {group.label}
+                </p>
+                <div className="flex flex-col gap-2">
+                  {group.items.map((m) => (
+                    <MeetingRow key={m.id} meeting={m} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

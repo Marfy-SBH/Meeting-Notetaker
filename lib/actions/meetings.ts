@@ -20,6 +20,14 @@ export async function startMeeting(title: string) {
   return { meetingId: meeting.id, workspaceId: workspace.id };
 }
 
+export async function startExistingMeeting(meetingId: string) {
+  const { workspace } = await getCurrentUserAndWorkspace();
+  const supabase = await createClient();
+  const meetingService = new MeetingService(supabase);
+  await meetingService.startExisting(meetingId);
+  return { meetingId, workspaceId: workspace.id };
+}
+
 export async function getRecordingUploadTarget(meetingId: string) {
   const { workspace } = await getCurrentUserAndWorkspace();
   const supabase = await createClient();

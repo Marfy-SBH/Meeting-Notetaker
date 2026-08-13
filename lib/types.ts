@@ -29,6 +29,8 @@ export interface Meeting {
   scheduled_start_time: string | null;
   scheduled_end_time: string | null;
   timezone: string;
+  reminder_minutes: number | null;
+  reminder_sent: boolean;
   started_at: string | null;
   ended_at: string | null;
   duration: number | null;
@@ -134,6 +136,13 @@ export interface CalendarEvent {
 }
 
 export type IntegrationProvider = "google_calendar" | "zoom" | "slack";
+
+export type AiProvider = "gemini" | "openai" | "anthropic";
+
+export interface AiConfig {
+  provider: AiProvider | null;
+  apiKey: string | null;
+}
 
 export interface Integration {
   id: string;

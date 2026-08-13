@@ -1,5 +1,6 @@
 "use client";
 
+import { LayoutGrid, FileText, ClipboardList, MessageSquareText, CheckSquare, Video } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { MeetingMediaProvider, useMeetingMedia } from "@/components/meetings/detail/meeting-media-context";
 
@@ -38,12 +39,24 @@ function MeetingTabsInner({
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab}>
       <TabsList>
-        <TabsTrigger value="overview">Overview</TabsTrigger>
-        <TabsTrigger value="summary">Summary</TabsTrigger>
-        <TabsTrigger value="minutes">Minutes</TabsTrigger>
-        <TabsTrigger value="transcript">Transcript</TabsTrigger>
-        <TabsTrigger value="action-items">Action Items</TabsTrigger>
-        <TabsTrigger value="recording">Recording</TabsTrigger>
+        <TabsTrigger value="overview">
+          <LayoutGrid className="h-4 w-4" /> Overview
+        </TabsTrigger>
+        <TabsTrigger value="summary">
+          <FileText className="h-4 w-4" /> Summary
+        </TabsTrigger>
+        <TabsTrigger value="minutes">
+          <ClipboardList className="h-4 w-4" /> Minutes
+        </TabsTrigger>
+        <TabsTrigger value="transcript">
+          <MessageSquareText className="h-4 w-4" /> Transcript
+        </TabsTrigger>
+        <TabsTrigger value="action-items">
+          <CheckSquare className="h-4 w-4" /> Action Items
+        </TabsTrigger>
+        <TabsTrigger value="recording">
+          <Video className="h-4 w-4" /> Recording
+        </TabsTrigger>
       </TabsList>
       <TabsContent value="overview">{overview}</TabsContent>
       <TabsContent value="summary">{summary}</TabsContent>

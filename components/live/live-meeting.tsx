@@ -9,18 +9,19 @@ import { RecordingStatus, type LiveStatus } from "@/components/live/recording-st
 import { EndMeetingDialog } from "@/components/live/end-meeting-dialog";
 import { formatTimer } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-import { startMeeting, getRecordingUploadTarget, finalizeMeeting } from "@/lib/actions/meetings";
+import { startMeeting, startExistingMeeting, getRecordingUploadTarget, finalizeMeeting } from "@/lib/actions/meetings";
 
-type Phase = "setup" | "permission-error" | "live" | "ending" | "upload-error";
+type Phase = "setup" | "permission-error" | "start-error" | "live" | "ending" | "upload-error";
 
-export function LiveMeeting() {
+export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; initialTitle?: string }) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("setup");
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(initialTitle ?? "");
   const [liveStatus, setLiveStatus] = useState<LiveStatus>("idle");
   const [elapsed, setElapsed] = useState(0);
   const [endDialogOpen, setEndDialogOpen] = useState(false);
   const [ending, setEnding] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
 
   const meetingIdRef = useRef<string | null>(null);
   const workspaceIdRef = useRef<string | null>(null);
@@ -57,12 +58,23 @@ export function LiveMeeting() {
   }
 
   async function handleStart() {
+    let stream: MediaStream;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
+    } catch {
+      setPhase("permission-error");
+      return;
+    }
 
-      const { meetingId, workspaceId } = await startMeeting(title);
-      meetingIdRef.current = meetingId;
+    try {
+      // Starting an already-scheduled meeting always begins recording right
+      // now, regardless of its originally scheduled time — the scheduled
+      // slot is a reservation, not a guarantee of when it actually happens.
+      const { meetingId: startedMeetingId, workspaceId } = meetingId
+        ? await startExistingMeeting(meetingId)
+        : await startMeeting(title);
+      meetingIdRef.current = startedMeetingId;
       workspaceIdRef.current = workspaceId;
 
       const recorder = new MediaRecorder(stream);
@@ -79,8 +91,10 @@ export function LiveMeeting() {
 
       setPhase("live");
       setLiveStatus("recording");
-    } catch {
-      setPhase("permission-error");
+    } catch (err) {
+      stream.getTracks().forEach((t) => t.stop());
+      setStartError(err instanceof Error ? err.message : "Could not start this meeting.");
+      setPhase("start-error");
     }
   }
 
@@ -144,6 +158,15 @@ export function LiveMeeting() {
     );
   }
 
+  if (phase === "start-error") {
+    return (
+      <ErrorScreen
+        title={startError ?? "Could not start this meeting."}
+        action={{ label: "Back", onClick: () => setPhase("setup") }}
+      />
+    );
+  }
+
   if (phase === "upload-error") {
     return (
       <ErrorScreen
@@ -167,12 +190,16 @@ export function LiveMeeting() {
             transcript — AI processes everything after you end the meeting.
           </p>
         </div>
-        <Input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Meeting title (optional)"
-          className="text-center"
-        />
+        {meetingId ? (
+          <p className="text-base font-medium text-foreground">{title || "Untitled Meeting"}</p>
+        ) : (
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Meeting title (optional)"
+            className="text-center"
+          />
+        )}
         <Button size="lg" onClick={handleStart} className="w-full">
           <Mic className="h-4 w-4" /> Start Meeting
         </Button>

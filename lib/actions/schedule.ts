@@ -18,10 +18,11 @@ export async function scheduleMeeting(formData: FormData) {
 
     const supabase = await createClient();
 
+    const meetingId = String(formData.get("meetingId") ?? "") || null;
     const title = String(formData.get("title") ?? "Untitled Meeting");
-    const date = String(formData.get("date"));
-    const startTime = String(formData.get("startTime"));
-    const endTime = String(formData.get("endTime"));
+    const date = String(formData.get("date") ?? "");
+    const startTime = String(formData.get("startTime") ?? "");
+    const endTime = String(formData.get("endTime") ?? "") || null;
     const timezone = String(formData.get("timezone") ?? "UTC");
     const platform = String(formData.get("platform") ?? "in_app");
     const meetingLink = String(formData.get("meetingLink") ?? "") || null;
@@ -30,30 +31,40 @@ export async function scheduleMeeting(formData: FormData) {
     const participantEmails = String(formData.get("participants") ?? "")
       .split(",")
       .map((e) => e.trim())
-      .filter(Boolean);
+      .filter((e) => e.includes("@"));
 
-    const { data: meeting, error } = await supabase
-      .from("meetings")
-      .insert({
-        workspace_id: workspace.id,
-        created_by: user.id,
-        title,
-        platform,
-        meeting_link: meetingLink,
-        status: "scheduled",
-        scheduled_date: date,
-        scheduled_start_time: startTime,
-        scheduled_end_time: endTime,
-        timezone,
-        reminder_minutes: reminderMinutes,
-      })
-      .select()
-      .single();
+    // The time picker's real value lives in a hidden input, which the browser
+    // never constraint-validates — enforce the required fields here instead.
+    if (!date || !startTime) {
+      return { error: "Please pick a date and start time." };
+    }
+
+    const fields = {
+      title,
+      platform,
+      meeting_link: meetingLink,
+      scheduled_date: date,
+      scheduled_start_time: startTime,
+      scheduled_end_time: endTime,
+      timezone,
+      reminder_minutes: reminderMinutes,
+    };
+
+    const { data: meeting, error } = meetingId
+      ? await supabase.from("meetings").update(fields).eq("id", meetingId).select().single()
+      : await supabase
+          .from("meetings")
+          .insert({ ...fields, workspace_id: workspace.id, created_by: user.id, status: "scheduled" })
+          .select()
+          .single();
 
     if (error || !meeting) {
-      console.error("scheduleMeeting: insert failed", error);
+      console.error("scheduleMeeting: save failed", error);
       return { error: error?.message ?? "Could not schedule meeting" };
     }
+
+    // Editing replaces the participant list wholesale rather than diffing it.
+    if (meetingId) await supabase.from("participants").delete().eq("meeting_id", meetingId);
 
     if (participantEmails.length > 0) {
       const { error: participantsError } = await supabase.from("participants").insert(
@@ -63,12 +74,16 @@ export async function scheduleMeeting(formData: FormData) {
     }
 
     try {
+      const startDateTime = new Date(`${date}T${startTime}`);
+      // No end time given — default to a 30-minute block for the calendar sync.
+      const endDateTime = endTime ? new Date(`${date}T${endTime}`) : new Date(startDateTime.getTime() + 30 * 60_000);
+
       const calendarService = new CalendarService(supabase);
       await calendarService.syncMeetingToGoogle(workspace.id, meeting.id, {
         title,
         description,
-        startTime: new Date(`${date}T${startTime}`).toISOString(),
-        endTime: new Date(`${date}T${endTime}`).toISOString(),
+        startTime: startDateTime.toISOString(),
+        endTime: endDateTime.toISOString(),
         timezone,
         location: meetingLink ?? undefined,
         attendees: participantEmails.map((email) => ({ email })),
@@ -80,6 +95,7 @@ export async function scheduleMeeting(formData: FormData) {
     revalidatePath("/calendar");
     revalidatePath("/dashboard");
     revalidatePath("/meetings");
+    revalidatePath(`/meetings/${meeting.id}`);
     return { success: true, meetingId: meeting.id };
   } catch (err) {
     console.error("scheduleMeeting: unexpected error", err);

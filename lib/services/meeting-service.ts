@@ -80,6 +80,21 @@ export class MeetingService {
     return data;
   }
 
+  // Conditioned on status="scheduled" so this is an atomic compare-and-swap:
+  // it can't restart an already-completed/recording meeting, and if two
+  // people race to start the same scheduled meeting, only the first succeeds.
+  async startExisting(meetingId: string) {
+    const { data, error } = await this.supabase
+      .from("meetings")
+      .update({ status: "recording", started_at: new Date().toISOString() })
+      .eq("id", meetingId)
+      .eq("status", "scheduled")
+      .select()
+      .single();
+    if (error) throw new Error("This meeting has already been started or is no longer scheduled.");
+    return data;
+  }
+
   async finalizeRecording(meetingId: string, recordingUrl: string, durationSeconds: number) {
     const { error } = await this.supabase
       .from("meetings")
