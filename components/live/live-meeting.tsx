@@ -138,7 +138,7 @@ export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; i
         .upload(path, blob, { contentType: blob.type, upsert: true });
       if (uploadError) throw uploadError;
 
-      await finalizeMeeting(meetingId, path, finalDurationSeconds);
+      await finalizeMeeting(meetingId, finalDurationSeconds);
       router.push(`/meetings/${meetingId}`);
     } catch (err) {
       console.error("Failed to upload recording:", err);

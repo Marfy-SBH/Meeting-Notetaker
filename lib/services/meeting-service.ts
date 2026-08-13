@@ -96,7 +96,10 @@ export class MeetingService {
   }
 
   async finalizeRecording(meetingId: string, recordingUrl: string, durationSeconds: number) {
-    const { error } = await this.supabase
+    // .select().single() so an RLS-blocked update (caller doesn't own this
+    // meeting) throws instead of silently affecting zero rows and letting the
+    // caller believe finalization succeeded.
+    const { data, error } = await this.supabase
       .from("meetings")
       .update({
         status: "processing",
@@ -105,8 +108,10 @@ export class MeetingService {
         duration: durationSeconds,
         processing_step: "saved",
       })
-      .eq("id", meetingId);
-    if (error) throw error;
+      .eq("id", meetingId)
+      .select()
+      .single();
+    if (error || !data) throw new Error("Could not finalize this meeting — it may not belong to your workspace.");
   }
 
   async updateProcessingStep(meetingId: string, step: string, error?: string) {

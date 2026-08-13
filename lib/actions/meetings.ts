@@ -35,8 +35,17 @@ export async function getRecordingUploadTarget(meetingId: string) {
   return { path: storage.recordingPath(workspace.id, meetingId) };
 }
 
-export async function finalizeMeeting(meetingId: string, recordingPath: string, durationSeconds: number) {
+export async function finalizeMeeting(meetingId: string, durationSeconds: number) {
+  // The storage path is never taken from client input — it's always derived
+  // from the caller's own workspace, so there's nothing for a caller to point
+  // at another workspace's recording. (Previously accepted the client-computed
+  // path directly, which combined with the service-role processing pipeline
+  // below to let a caller request a signed URL for ANY workspace's audio.)
+  const { workspace } = await getCurrentUserAndWorkspace();
   const supabase = await createClient();
+  const storage = new StorageService(supabase);
+  const recordingPath = storage.recordingPath(workspace.id, meetingId);
+
   const meetingService = new MeetingService(supabase);
   await meetingService.finalizeRecording(meetingId, recordingPath, durationSeconds);
 
