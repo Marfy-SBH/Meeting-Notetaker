@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserAndWorkspace } from "@/lib/data/current";
 import { MeetingsFilters } from "@/components/meetings/meetings-filters";
@@ -7,20 +6,30 @@ import { MeetingsCalendarView } from "@/components/meetings/meetings-calendar-vi
 import { MeetingRow } from "@/components/meetings/meeting-row";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { groupMeetingsByDate, meetingDateTime } from "@/lib/meeting-grouping";
+import {
+  groupMeetingsByDate,
+  meetingDateTime,
+  startOfDayInAppTz,
+  endOfDayInAppTz,
+  daysAgoInAppTz,
+  startOfWeekInAppTz,
+  endOfWeekInAppTz,
+  startOfMonthInAppTz,
+  endOfMonthInAppTz,
+} from "@/lib/meeting-grouping";
 import type { Meeting, Participant } from "@/lib/types";
 
 function rangeBounds(range: string | undefined) {
   const now = new Date();
   switch (range) {
     case "today":
-      return [startOfDay(now), endOfDay(now)];
+      return [startOfDayInAppTz(now), endOfDayInAppTz(now)];
     case "yesterday":
-      return [startOfDay(subDays(now, 1)), endOfDay(subDays(now, 1))];
+      return [startOfDayInAppTz(daysAgoInAppTz(now, 1)), endOfDayInAppTz(daysAgoInAppTz(now, 1))];
     case "week":
-      return [startOfWeek(now), endOfWeek(now)];
+      return [startOfWeekInAppTz(now), endOfWeekInAppTz(now)];
     case "month":
-      return [startOfMonth(now), endOfMonth(now)];
+      return [startOfMonthInAppTz(now), endOfMonthInAppTz(now)];
     default:
       return null;
   }

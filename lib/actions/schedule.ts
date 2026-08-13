@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserAndWorkspace } from "@/lib/data/current";
 import { CalendarService } from "@/lib/services/calendar-service";
+import { fromZonedTime } from "date-fns-tz";
 import { revalidatePath } from "next/cache";
 
 export async function scheduleMeeting(formData: FormData) {
@@ -74,9 +75,14 @@ export async function scheduleMeeting(formData: FormData) {
     }
 
     try {
-      const startDateTime = new Date(`${date}T${startTime}`);
+      // Parsed against the form's own `timezone` field (the scheduler's
+      // browser tz), not the server process's ambient timezone — a naive
+      // `new Date(string)` here would sync the Google Calendar event at the
+      // wrong instant whenever the server isn't coincidentally in the same
+      // zone the meeting was scheduled in.
+      const startDateTime = fromZonedTime(`${date}T${startTime}`, timezone);
       // No end time given — default to a 30-minute block for the calendar sync.
-      const endDateTime = endTime ? new Date(`${date}T${endTime}`) : new Date(startDateTime.getTime() + 30 * 60_000);
+      const endDateTime = endTime ? fromZonedTime(`${date}T${endTime}`, timezone) : new Date(startDateTime.getTime() + 30 * 60_000);
 
       const calendarService = new CalendarService(supabase);
       await calendarService.syncMeetingToGoogle(workspace.id, meeting.id, {

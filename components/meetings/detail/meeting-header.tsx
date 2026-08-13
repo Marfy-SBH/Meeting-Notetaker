@@ -1,9 +1,8 @@
-import { format } from "date-fns";
 import { Users2 } from "lucide-react";
 import { PlatformLabel } from "@/components/meetings/platform-label";
 import { StatusBadge } from "@/components/meetings/status-badge";
 import { formatDuration } from "@/lib/utils";
-import { meetingDateTime } from "@/lib/meeting-grouping";
+import { meetingDateTime, formatInAppTz } from "@/lib/meeting-grouping";
 import type { Meeting, Participant } from "@/lib/types";
 
 export function MeetingHeader({ meeting }: { meeting: Meeting & { participants: Participant[] } }) {
@@ -17,11 +16,11 @@ export function MeetingHeader({ meeting }: { meeting: Meeting & { participants: 
         <StatusBadge status={meeting.status} />
       </div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-        <span>{format(start, "MMMM d, yyyy")}</span>
+        <span>{formatInAppTz(start, "MMMM d, yyyy")}</span>
         <span>·</span>
         <span>
-          {format(start, "h:mm a")}
-          {end ? ` – ${format(end, "h:mm a")}` : ""}
+          {formatInAppTz(start, "h:mm a")}
+          {end ? ` – ${formatInAppTz(end, "h:mm a")}` : ""}
         </span>
         {meeting.duration != null && (
           <>

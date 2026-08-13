@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { format, isSameDay, isToday } from "date-fns";
+import { format } from "date-fns";
 import { StatusBadge } from "@/components/meetings/status-badge";
-import { meetingDateTime, meetingEndDateTime } from "@/lib/meeting-grouping";
+import { meetingDateTime, meetingEndDateTime, formatInAppTz, minutesSinceMidnightInAppTz } from "@/lib/meeting-grouping";
 import { layoutDayEvents } from "@/lib/calendar-layout";
 import { cn } from "@/lib/utils";
 import type { Meeting } from "@/lib/types";
@@ -13,14 +13,16 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 export function TimeGrid({ days, meetings }: { days: Date[]; meetings: Meeting[] }) {
   const now = new Date();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const todayKey = formatInAppTz(now, "yyyy-MM-dd");
+  const nowMinutes = minutesSinceMidnightInAppTz(now);
 
   const byDay = days.map((day) => {
-    const dayMeetings = meetings.filter((m) => isSameDay(meetingDateTime(m), day));
+    const dayKey = formatInAppTz(day, "yyyy-MM-dd");
+    const dayMeetings = meetings.filter((m) => formatInAppTz(meetingDateTime(m), "yyyy-MM-dd") === dayKey);
     const events = layoutDayEvents(
       dayMeetings.map((m) => ({ id: m.id, start: meetingDateTime(m), end: meetingEndDateTime(m) }))
     );
-    return { day, events, meetingsById: new Map(dayMeetings.map((m) => [m.id, m])) };
+    return { day, dayKey, events, meetingsById: new Map(dayMeetings.map((m) => [m.id, m])) };
   });
 
   return (
@@ -29,14 +31,14 @@ export function TimeGrid({ days, meetings }: { days: Date[]; meetings: Meeting[]
         <div className="w-14 shrink-0" />
         {days.map((day) => (
           <div key={day.toISOString()} className="flex-1 border-l border-border py-2 text-center">
-            <p className="text-xs text-muted-foreground">{format(day, "EEE")}</p>
+            <p className="text-xs text-muted-foreground">{formatInAppTz(day, "EEE")}</p>
             <p
               className={cn(
                 "mx-auto mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold",
-                isToday(day) ? "bg-primary text-white" : "text-foreground"
+                formatInAppTz(day, "yyyy-MM-dd") === todayKey ? "bg-primary text-white" : "text-foreground"
               )}
             >
-              {format(day, "d")}
+              {formatInAppTz(day, "d")}
             </p>
           </div>
         ))}
@@ -54,13 +56,13 @@ export function TimeGrid({ days, meetings }: { days: Date[]; meetings: Meeting[]
             ))}
           </div>
 
-          {byDay.map(({ day, events, meetingsById }) => (
+          {byDay.map(({ day, dayKey, events, meetingsById }) => (
             <div key={day.toISOString()} className="relative flex-1 border-l border-border">
               {HOURS.map((h) => (
                 <div key={h} style={{ height: HOUR_HEIGHT }} className="border-b border-border/60" />
               ))}
 
-              {isToday(day) && (
+              {dayKey === todayKey && (
                 <div
                   className="absolute inset-x-0 z-10 h-px bg-danger"
                   style={{ top: (nowMinutes / 60) * HOUR_HEIGHT }}
@@ -72,7 +74,7 @@ export function TimeGrid({ days, meetings }: { days: Date[]; meetings: Meeting[]
               {events.map((e) => {
                 const meeting = meetingsById.get(e.id);
                 if (!meeting) return null;
-                const startMinutes = e.start.getHours() * 60 + e.start.getMinutes();
+                const startMinutes = minutesSinceMidnightInAppTz(e.start);
                 const durationMinutes = Math.max(30, (e.end.getTime() - e.start.getTime()) / 60000);
                 const width = 100 / e.colCount;
 
@@ -88,7 +90,7 @@ export function TimeGrid({ days, meetings }: { days: Date[]; meetings: Meeting[]
                       width: `${width}%`,
                     }}
                   >
-                    <p className="truncate text-[11px] font-medium text-primary">{format(e.start, "h:mm a")}</p>
+                    <p className="truncate text-[11px] font-medium text-primary">{formatInAppTz(e.start, "h:mm a")}</p>
                     <p className="truncate text-xs font-medium text-foreground">{meeting.title}</p>
                   </Link>
                 );

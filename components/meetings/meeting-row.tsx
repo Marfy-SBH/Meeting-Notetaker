@@ -1,11 +1,10 @@
 import Link from "next/link";
-import { format } from "date-fns";
 import { Users2 } from "lucide-react";
 import { PlatformLabel } from "@/components/meetings/platform-label";
 import { StatusBadge } from "@/components/meetings/status-badge";
 import { ScheduledMeetingDialog } from "@/components/meetings/scheduled-meeting-dialog";
 import { formatDuration } from "@/lib/utils";
-import { meetingDateTime } from "@/lib/meeting-grouping";
+import { meetingDateTime, formatInAppTz } from "@/lib/meeting-grouping";
 import type { Meeting, Participant } from "@/lib/types";
 
 export function MeetingRow({ meeting }: { meeting: Meeting & { participants?: Participant[] } }) {
@@ -21,7 +20,7 @@ export function MeetingRow({ meeting }: { meeting: Meeting & { participants?: Pa
         <StatusBadge status={meeting.status} />
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-        <span>{format(dt, "h:mm a")}</span>
+        <span>{formatInAppTz(dt, "h:mm a")}</span>
         {meeting.duration != null && <span>{formatDuration(meeting.duration)}</span>}
         {meeting.participants && meeting.participants.length > 0 && (
           <span className="inline-flex items-center gap-1">

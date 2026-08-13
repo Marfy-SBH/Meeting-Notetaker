@@ -1,12 +1,12 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { format } from "date-fns";
 import { Search, Pencil, Check, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/ui/copy-button";
 import { formatTimer, cn } from "@/lib/utils";
+import { formatInAppTz } from "@/lib/meeting-grouping";
 import { useMeetingMedia } from "@/components/meetings/detail/meeting-media-context";
 import { renameSpeaker } from "@/lib/actions/transcript";
 import type { TranscriptSegment } from "@/lib/types";
@@ -122,7 +122,7 @@ export function TranscriptTab({
                           <Pencil className="h-3 w-3" />
                         </button>
                         {startedAt && (
-                          <span className="text-xs text-muted-foreground">{format(time, "h:mm:ss a")}</span>
+                          <span className="text-xs text-muted-foreground">{formatInAppTz(time, "h:mm:ss a")}</span>
                         )}
                       </>
                     )}

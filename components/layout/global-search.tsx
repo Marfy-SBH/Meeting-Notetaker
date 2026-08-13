@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { format } from "date-fns";
+import { formatInAppTz } from "@/lib/meeting-grouping";
 
 interface SearchResult {
   id: string;
@@ -95,7 +95,7 @@ export function GlobalSearch({
                 <p className="text-sm font-medium text-foreground">{r.title}</p>
                 {r.date && (
                   <span className="text-xs text-muted-foreground">
-                    {format(new Date(r.date), "MMM d, yyyy")}
+                    {formatInAppTz(new Date(r.date), "MMM d, yyyy")}
                   </span>
                 )}
               </div>

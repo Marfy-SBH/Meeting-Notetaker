@@ -2,17 +2,14 @@
 
 import { useTransition } from "react";
 import Link from "next/link";
-import { format, isToday, isYesterday } from "date-fns";
 import { CheckCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { markNotificationRead, markAllNotificationsRead } from "@/lib/actions/notifications";
+import { dateGroupLabel, formatInAppTz } from "@/lib/meeting-grouping";
 import type { Notification } from "@/lib/types";
 
 function groupLabel(dateStr: string) {
-  const d = new Date(dateStr);
-  if (isToday(d)) return "Today";
-  if (isYesterday(d)) return "Yesterday";
-  return format(d, "MMMM d");
+  return dateGroupLabel(new Date(dateStr));
 }
 
 export function NotificationPanel({ notifications }: { notifications: Notification[] }) {
@@ -60,7 +57,7 @@ export function NotificationPanel({ notifications }: { notifications: Notificati
                     <p className="font-medium text-foreground">{n.title}</p>
                     <p className="text-xs text-muted-foreground">{n.message}</p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground/70">
-                      {format(new Date(n.created_at), "h:mm a")}
+                      {formatInAppTz(new Date(n.created_at), "h:mm a")}
                     </p>
                   </div>
                 </div>

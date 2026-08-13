@@ -5,6 +5,7 @@ import { TranscriptionService } from "@/lib/services/transcription-service";
 import { AIAnalysisService } from "@/lib/services/ai-analysis-service";
 import { NotificationService } from "@/lib/services/notification-service";
 import { StorageService } from "@/lib/services/storage-service";
+import { meetingDateTime } from "@/lib/meeting-grouping";
 
 export const sendMeetingReminders = inngest.createFunction(
   { id: "send-meeting-reminders" },
@@ -23,7 +24,13 @@ export const sendMeetingReminders = inngest.createFunction(
 
       const now = Date.now();
       for (const meeting of meetings ?? []) {
-        const startTime = new Date(`${meeting.scheduled_date}T${meeting.scheduled_start_time ?? "00:00:00"}`).getTime();
+        // meetingDateTime() correctly interprets scheduled_date/scheduled_start_time
+        // against the meeting's own stored timezone — a naive `new Date(string)`
+        // parse here (the previous code) is interpreted in the *server process's*
+        // ambient timezone, which silently fires reminders hours off whenever the
+        // deployment isn't coincidentally set to the same zone the meeting was
+        // scheduled in.
+        const startTime = meetingDateTime(meeting).getTime();
         const reminderAt = startTime - (meeting.reminder_minutes ?? 15) * 60_000;
         if (now >= reminderAt && now < startTime) {
           const minutesLeft = Math.max(1, Math.round((startTime - now) / 60_000));

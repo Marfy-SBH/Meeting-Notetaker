@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
 import { Mic, Pencil } from "lucide-react";
 import {
   Dialog,
@@ -18,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/meetings/status-badge";
 import { PlatformLabel } from "@/components/meetings/platform-label";
 import { ScheduleMeetingDialog } from "@/components/calendar/schedule-meeting-dialog";
-import { meetingDateTime, meetingEndDateTime } from "@/lib/meeting-grouping";
+import { meetingDateTime, meetingEndDateTime, formatInAppTz } from "@/lib/meeting-grouping";
 import type { Meeting, Participant } from "@/lib/types";
 
 export function ScheduledMeetingDialog({
@@ -49,8 +48,8 @@ export function ScheduledMeetingDialog({
           </DialogHeader>
 
           <div className="flex flex-col gap-3 text-sm">
-            <InfoRow label="Date" value={format(start, "MMMM d, yyyy")} />
-            <InfoRow label="Time" value={`${format(start, "h:mm a")} – ${format(end, "h:mm a")}`} />
+            <InfoRow label="Date" value={formatInAppTz(start, "MMMM d, yyyy")} />
+            <InfoRow label="Time" value={`${formatInAppTz(start, "h:mm a")} – ${formatInAppTz(end, "h:mm a")}`} />
             <InfoRow label="Platform" value={<PlatformLabel platform={meeting.platform} />} />
             <InfoRow
               label="Participants"

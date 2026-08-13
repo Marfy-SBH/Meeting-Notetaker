@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { format } from "date-fns";
 import { Mic, CalendarPlus, CalendarClock, Clock, ListChecks, CalendarDays } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserAndWorkspace } from "@/lib/data/current";
@@ -9,7 +8,7 @@ import { MeetingRow } from "@/components/meetings/meeting-row";
 import { UpcomingMeetingCard } from "@/components/meetings/upcoming-meeting-card";
 import { ScheduleMeetingDialog } from "@/components/calendar/schedule-meeting-dialog";
 import { SeedDemoButton } from "@/components/dashboard/seed-demo-button";
-import { groupMeetingsByDate, isUpcoming, meetingDateTime } from "@/lib/meeting-grouping";
+import { groupMeetingsByDate, isUpcoming, meetingDateTime, formatInAppTz } from "@/lib/meeting-grouping";
 import { formatDuration } from "@/lib/utils";
 import type { Meeting, Participant } from "@/lib/types";
 
@@ -38,7 +37,8 @@ export default async function DashboardPage() {
     .eq("meetings.workspace_id", workspace.id)
     .eq("status", "pending");
 
-  const todayUpcoming = upcoming.filter((m) => format(new Date(m.scheduled_date ?? m.started_at ?? m.created_at), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd"));
+  const todayKey = formatInAppTz(new Date(), "yyyy-MM-dd");
+  const todayUpcoming = upcoming.filter((m) => formatInAppTz(meetingDateTime(m), "yyyy-MM-dd") === todayKey);
   const recentGroups = groupMeetingsByDate(all.filter((m) => m.status === "completed" || m.status === "processing" || m.status === "failed")).slice(0, 3);
 
   const kpis = [

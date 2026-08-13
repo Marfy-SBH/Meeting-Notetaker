@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CopyButton } from "@/components/ui/copy-button";
 import { LanguageToggle } from "@/components/ui/language-toggle";
 import { formatDuration } from "@/lib/utils";
-import { meetingDateTime } from "@/lib/meeting-grouping";
+import { meetingDateTime, formatInAppTz } from "@/lib/meeting-grouping";
 import type { Bilingual, MeetingWithRelations, MinutesContent } from "@/lib/types";
 
 const LABELS = {
@@ -68,8 +67,8 @@ export function MinutesTab({ meeting }: { meeting: MeetingWithRelations }) {
 
   const copyText = [
     t.info,
-    `${t.date}: ${format(start, "MMMM d, yyyy")}`,
-    `${t.time}: ${format(start, "h:mm a")}`,
+    `${t.date}: ${formatInAppTz(start, "MMMM d, yyyy")}`,
+    `${t.time}: ${formatInAppTz(start, "h:mm a")}`,
     `${t.duration}: ${meeting.duration != null ? formatDuration(meeting.duration) : "—"}`,
     `${t.participants}: ${participantNames}`,
     "",
@@ -98,8 +97,8 @@ export function MinutesTab({ meeting }: { meeting: MeetingWithRelations }) {
       <CardContent className="flex flex-col gap-6">
         <Section title={t.info}>
           <dl className="grid grid-cols-2 gap-2 text-sm">
-            <Info label={t.date} value={format(start, "MMMM d, yyyy")} />
-            <Info label={t.time} value={format(start, "h:mm a")} />
+            <Info label={t.date} value={formatInAppTz(start, "MMMM d, yyyy")} />
+            <Info label={t.time} value={formatInAppTz(start, "h:mm a")} />
             <Info label={t.duration} value={meeting.duration != null ? formatDuration(meeting.duration) : "—"} />
             <Info label={t.participants} value={participantNames} />
           </dl>

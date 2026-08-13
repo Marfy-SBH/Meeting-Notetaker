@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { format } from "date-fns";
 import { Users2 } from "lucide-react";
 import { PlatformLabel } from "@/components/meetings/platform-label";
 import { StatusBadge } from "@/components/meetings/status-badge";
 import { ScheduledMeetingDialog } from "@/components/meetings/scheduled-meeting-dialog";
-import { meetingDateTime } from "@/lib/meeting-grouping";
+import { meetingDateTime, formatInAppTz } from "@/lib/meeting-grouping";
 import type { Meeting, Participant } from "@/lib/types";
 
 export function UpcomingMeetingCard({ meeting }: { meeting: Meeting & { participants?: Participant[] } }) {
@@ -13,12 +12,12 @@ export function UpcomingMeetingCard({ meeting }: { meeting: Meeting & { particip
   const cardBody = (
     <>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-muted-foreground">{format(dt, "EEE, MMM d")}</span>
+        <span className="text-xs font-medium text-muted-foreground">{formatInAppTz(dt, "EEE, MMM d")}</span>
         <StatusBadge status={meeting.status} />
       </div>
       <p className="line-clamp-2 text-sm font-medium text-foreground">{meeting.title}</p>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        <span>{format(dt, "h:mm a")}</span>
+        <span>{formatInAppTz(dt, "h:mm a")}</span>
         {meeting.participants && meeting.participants.length > 0 && (
           <span className="inline-flex items-center gap-1">
             <Users2 className="h-3.5 w-3.5" /> {meeting.participants.length}

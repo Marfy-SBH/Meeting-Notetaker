@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { format, startOfWeek, addDays, addMonths, subMonths } from "date-fns";
+import { addDays, addMonths, subMonths } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MeetingsCalendarView } from "@/components/meetings/meetings-calendar-view";
 import { TimeGrid } from "@/components/calendar/time-grid";
+import { formatInAppTz, startOfWeekInAppTz } from "@/lib/meeting-grouping";
 import type { Meeting } from "@/lib/types";
 
 type ViewMode = "day" | "week" | "month";
@@ -15,7 +16,7 @@ export function CalendarView({ meetings }: { meetings: Meeting[] }) {
   const [anchor, setAnchor] = useState(new Date());
 
   const weekDays = useMemo(() => {
-    const start = startOfWeek(anchor);
+    const start = startOfWeekInAppTz(anchor);
     return Array.from({ length: 7 }, (_, i) => addDays(start, i));
   }, [anchor]);
 
@@ -27,10 +28,10 @@ export function CalendarView({ meetings }: { meetings: Meeting[] }) {
 
   const title =
     view === "day"
-      ? format(anchor, "MMMM d, yyyy")
+      ? formatInAppTz(anchor, "MMMM d, yyyy")
       : view === "week"
-        ? `${format(weekDays[0], "MMM d")} – ${format(weekDays[6], "MMM d, yyyy")}`
-        : format(anchor, "MMMM yyyy");
+        ? `${formatInAppTz(weekDays[0], "MMM d")} – ${formatInAppTz(weekDays[6], "MMM d, yyyy")}`
+        : formatInAppTz(anchor, "MMMM yyyy");
 
   return (
     <div className="flex flex-col gap-4">
