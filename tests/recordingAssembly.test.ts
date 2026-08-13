@@ -39,26 +39,35 @@ async function uploadChunk(storage: StorageService, meetingId: string, seq: numb
 }
 
 describe("StorageService.assembleChunks", () => {
-  it("concatenates every chunk in order into the canonical recording path", async () => {
-    const storage = new StorageService(supabase);
-    const meetingId = crypto.randomUUID();
-    await uploadChunk(storage, meetingId, 0, "chunk-zero-");
-    await uploadChunk(storage, meetingId, 1, "chunk-one-");
-    await uploadChunk(storage, meetingId, 2, "chunk-two");
+  it(
+    "concatenates every chunk in order into the canonical recording path",
+    async () => {
+      const storage = new StorageService(supabase);
+      const meetingId = crypto.randomUUID();
+      await uploadChunk(storage, meetingId, 0, "chunk-zero-");
+      await uploadChunk(storage, meetingId, 1, "chunk-one-");
+      await uploadChunk(storage, meetingId, 2, "chunk-two");
 
-    const finalPath = await storage.assembleChunks(workspaceId, meetingId, 3, "audio/webm");
-    expect(finalPath).toBe(storage.recordingPath(workspaceId, meetingId));
-    uploadedPaths.push(finalPath);
+      const finalPath = await storage.assembleChunks(workspaceId, meetingId, 3, "audio/webm");
+      expect(finalPath).toBe(storage.recordingPath(workspaceId, meetingId));
+      uploadedPaths.push(finalPath);
 
-    const { data, error } = await supabase.storage.from(BUCKET).download(finalPath);
-    expect(error).toBeNull();
-    const text = await data!.text();
-    expect(text).toBe("chunk-zero-chunk-one-chunk-two");
+      const { data, error } = await supabase.storage.from(BUCKET).download(finalPath);
+      expect(error).toBeNull();
+      const text = await data!.text();
+      expect(text).toBe("chunk-zero-chunk-one-chunk-two");
 
-    // Chunk objects should be cleaned up after a successful assemble.
-    const { data: remaining } = await supabase.storage.from(BUCKET).list(storage.chunkPrefix(workspaceId, meetingId));
-    expect(remaining ?? []).toHaveLength(0);
-  });
+      // Chunk objects should be cleaned up after a successful assemble.
+      const { data: remaining } = await supabase.storage
+        .from(BUCKET)
+        .list(storage.chunkPrefix(workspaceId, meetingId));
+      expect(remaining ?? []).toHaveLength(0);
+    },
+    // This test does ~8 sequential Storage round-trips (3 uploads, 3
+    // downloads, 1 final upload, list+cleanup) — the default 5s timeout is
+    // too tight for a real network round-trip per call.
+    15_000
+  );
 
   it("refuses to assemble and names the missing chunk when one never made it", async () => {
     const storage = new StorageService(supabase);
