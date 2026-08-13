@@ -12,10 +12,13 @@ export default async function IntegrationsPage() {
   const supabase = await createClient();
 
   const [{ data }, { data: profile }] = await Promise.all([
-    supabase.from("integrations").select("*").eq("workspace_id", workspace.id),
+    // Regular members can't read access_token/refresh_token directly (see
+    // 0006_integrations_token_security.sql) — this RPC hands back only the
+    // fields the UI actually needs (status/settings), never the raw tokens.
+    supabase.rpc("get_workspace_integrations", { p_workspace_id: workspace.id }),
     supabase.from("profiles").select("settings").eq("id", user.id).single(),
   ]);
-  const integrations = (data ?? []) as Integration[];
+  const integrations = (data ?? []) as Omit<Integration, "access_token" | "refresh_token">[];
   const savedAiConfig: AiConfig = (profile?.settings as any)?.aiConfig ?? { provider: null, apiKey: null };
   // Never send the raw key to the client — only whether one is set.
   const aiConfig = { provider: savedAiConfig.provider, hasKey: Boolean(savedAiConfig.apiKey) };
