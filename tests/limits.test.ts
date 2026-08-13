@@ -11,9 +11,9 @@ describe("4a: recording duration cap", () => {
   it("finalizeMeeting rejects a duration over the cap before touching auth/DB", async () => {
     // No session/DB setup needed — the cap check runs before
     // getCurrentUserAndWorkspace(), so this is a fast, dependency-free check.
-    await expect(finalizeMeeting("00000000-0000-0000-0000-000000000000", MAX_RECORDING_DURATION_SECONDS + 1)).rejects.toThrow(
-      /can't be longer than/
-    );
+    await expect(
+      finalizeMeeting("00000000-0000-0000-0000-000000000000", MAX_RECORDING_DURATION_SECONDS + 1, 1, "audio/webm")
+    ).rejects.toThrow(/can't be longer than/);
   });
 });
 

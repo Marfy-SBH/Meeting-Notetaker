@@ -51,14 +51,19 @@ export async function startExistingMeeting(meetingId: string) {
   return { meetingId, workspaceId: workspace.id };
 }
 
-export async function getRecordingUploadTarget(meetingId: string) {
+export async function getChunkUploadTarget(meetingId: string, seq: number) {
   const { workspace } = await getCurrentUserAndWorkspace();
   const supabase = await createClient();
   const storage = new StorageService(supabase);
-  return { path: storage.recordingPath(workspace.id, meetingId) };
+  return { path: storage.chunkPath(workspace.id, meetingId, seq) };
 }
 
-export async function finalizeMeeting(meetingId: string, durationSeconds: number) {
+export async function finalizeMeeting(
+  meetingId: string,
+  durationSeconds: number,
+  chunkCount: number,
+  contentType: string
+) {
   // Defense-in-depth: the client already auto-ends at MAX_RECORDING_DURATION_SECONDS
   // (live-meeting.tsx), but that's bypassable by calling this action directly
   // with a fabricated duration — reject rather than silently accept it.
@@ -74,7 +79,12 @@ export async function finalizeMeeting(meetingId: string, durationSeconds: number
   const { workspace } = await getCurrentUserAndWorkspace();
   const supabase = await createClient();
   const storage = new StorageService(supabase);
-  const recordingPath = storage.recordingPath(workspace.id, meetingId);
+
+  // Assembles the per-chunk uploads into the single file the rest of the
+  // pipeline already expects at this path — throws with a specific message
+  // naming the missing portion if any chunk never made it, instead of
+  // silently finalizing a partial recording.
+  const recordingPath = await storage.assembleChunks(workspace.id, meetingId, chunkCount, contentType);
 
   const meetingService = new MeetingService(supabase);
   await meetingService.finalizeRecording(meetingId, recordingPath, durationSeconds);

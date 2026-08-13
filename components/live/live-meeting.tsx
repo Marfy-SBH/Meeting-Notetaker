@@ -9,8 +9,19 @@ import { RecordingStatus, type LiveStatus } from "@/components/live/recording-st
 import { EndMeetingDialog } from "@/components/live/end-meeting-dialog";
 import { formatTimer } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-import { startMeeting, startExistingMeeting, getRecordingUploadTarget, finalizeMeeting } from "@/lib/actions/meetings";
-import { MAX_RECORDING_DURATION_SECONDS, RECORDING_WARNING_LEAD_SECONDS } from "@/lib/constants";
+import {
+  startMeeting,
+  startExistingMeeting,
+  getChunkUploadTarget,
+  finalizeMeeting,
+} from "@/lib/actions/meetings";
+import {
+  MAX_RECORDING_DURATION_SECONDS,
+  RECORDING_WARNING_LEAD_SECONDS,
+  RECORDING_CHUNK_INTERVAL_MS,
+  CHUNK_UPLOAD_RETRY_DELAYS_MS,
+} from "@/lib/constants";
+import { retryWithBackoff } from "@/lib/retry";
 
 type Phase = "setup" | "permission-error" | "start-error" | "live" | "ending" | "upload-error";
 
@@ -24,16 +35,64 @@ export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; i
   const [ending, setEnding] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [autoEndWarning, setAutoEndWarning] = useState(false);
+  const [stuckChunkCount, setStuckChunkCount] = useState(0);
+  const [finalizeError, setFinalizeError] = useState<string | null>(null);
 
   const meetingIdRef = useRef<string | null>(null);
   const workspaceIdRef = useRef<string | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAtRef = useRef<number>(0);
   const pausedAccumRef = useRef<number>(0);
   const autoEndedRef = useRef(false);
+  const durationSecondsRef = useRef(0);
+
+  // Chunked upload state — each ondataavailable slice uploads immediately
+  // instead of sitting in memory until the meeting ends.
+  const mimeTypeRef = useRef<string>("audio/webm");
+  const chunkSeqRef = useRef(0);
+  const pendingUploadsRef = useRef<Promise<void>[]>([]);
+  const failedChunksRef = useRef<Map<number, Blob>>(new Map());
+
+  async function uploadChunkAttempt(seq: number, blob: Blob) {
+    const meetingId = meetingIdRef.current;
+    if (!meetingId) throw new Error("No active meeting.");
+    const { path } = await getChunkUploadTarget(meetingId, seq);
+    const supabase = createClient();
+    const { error } = await supabase.storage
+      .from("recordings")
+      .upload(path, blob, { contentType: mimeTypeRef.current, upsert: true });
+    if (error) throw error;
+  }
+
+  // Retries in the background without blocking recording. A chunk that's
+  // still failing after all retries is kept (with its blob) in
+  // failedChunksRef so it can be retried once more right before finalize.
+  async function uploadChunkWithRetry(seq: number, blob: Blob) {
+    let markedStuck = false;
+    try {
+      await retryWithBackoff(async () => {
+        try {
+          await uploadChunkAttempt(seq, blob);
+        } catch (err) {
+          if (!markedStuck) {
+            markedStuck = true;
+            failedChunksRef.current.set(seq, blob);
+            setStuckChunkCount(failedChunksRef.current.size);
+          }
+          throw err;
+        }
+      }, CHUNK_UPLOAD_RETRY_DELAYS_MS);
+      if (markedStuck) {
+        failedChunksRef.current.delete(seq);
+        setStuckChunkCount(failedChunksRef.current.size);
+      }
+    } catch {
+      // Exhausted retries — stays in failedChunksRef, tried once more in
+      // finishUpload() right before finalize.
+    }
+  }
 
   useEffect(() => {
     function handleBeforeUnload(e: BeforeUnloadEvent) {
@@ -95,12 +154,21 @@ export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; i
       workspaceIdRef.current = workspaceId;
 
       const recorder = new MediaRecorder(stream);
-      chunksRef.current = [];
+      mimeTypeRef.current = recorder.mimeType || "audio/webm";
+      chunkSeqRef.current = 0;
+      pendingUploadsRef.current = [];
+      failedChunksRef.current = new Map();
+      setStuckChunkCount(0);
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
+        if (e.data.size === 0) return;
+        const seq = chunkSeqRef.current++;
+        pendingUploadsRef.current.push(uploadChunkWithRetry(seq, e.data));
       };
       recorderRef.current = recorder;
-      recorder.start();
+      // timeslice: emit a chunk roughly every RECORDING_CHUNK_INTERVAL_MS
+      // instead of only once at the end, so each piece uploads as the
+      // meeting happens — a crash mid-meeting only costs the last chunk.
+      recorder.start(RECORDING_CHUNK_INTERVAL_MS);
 
       startedAtRef.current = Date.now();
       pausedAccumRef.current = 0;
@@ -127,6 +195,44 @@ export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; i
     setLiveStatus("recording");
   }
 
+  // Shared by both the initial "End Meeting" confirm and the "Retry" button
+  // on the upload-error screen — the retry path never touches the (already
+  // stopped) MediaRecorder again, it just re-settles chunk uploads and
+  // re-attempts finalize/assemble.
+  async function finishUpload(finalDurationSeconds: number) {
+    setEnding(true);
+    setLiveStatus("uploading");
+
+    try {
+      // Wait for every chunk upload started so far (including in-flight
+      // retries) to settle — the tail chunk from recorder.stop() is included
+      // since ondataavailable fires synchronously before onstop resolves.
+      await Promise.allSettled(pendingUploadsRef.current);
+
+      // One more attempt at anything still stuck before giving up — cheap,
+      // and avoids reporting "recording incomplete" for a blip that would
+      // have succeeded on a second try.
+      if (failedChunksRef.current.size > 0) {
+        const retries = Array.from(failedChunksRef.current.entries()).map(([seq, blob]) =>
+          uploadChunkWithRetry(seq, blob)
+        );
+        await Promise.allSettled(retries);
+      }
+
+      const meetingId = meetingIdRef.current;
+      if (!meetingId) throw new Error("Missing meeting id.");
+      await finalizeMeeting(meetingId, finalDurationSeconds, chunkSeqRef.current, mimeTypeRef.current);
+      router.push(`/meetings/${meetingId}`);
+    } catch (err) {
+      console.error("Failed to finalize recording:", err);
+      setFinalizeError(err instanceof Error ? err.message : "Your recording could not be uploaded.");
+      setPhase("upload-error");
+      setEndDialogOpen(false);
+    } finally {
+      setEnding(false);
+    }
+  }
+
   async function handleConfirmEnd(overrideDurationSeconds?: number) {
     setEnding(true);
     const recorder = recorderRef.current;
@@ -137,6 +243,7 @@ export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; i
     // Prefer the value computed in the same tick that triggered an auto-end
     // over the `elapsed` state, which may not have re-rendered yet.
     const finalDurationSeconds = overrideDurationSeconds ?? elapsed;
+    durationSecondsRef.current = finalDurationSeconds;
 
     const stopped = new Promise<void>((resolve) => {
       recorder.onstop = () => resolve();
@@ -145,27 +252,7 @@ export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; i
     await stopped;
 
     streamRef.current?.getTracks().forEach((t) => t.stop());
-    setLiveStatus("uploading");
-
-    try {
-      const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
-      const { path } = await getRecordingUploadTarget(meetingId);
-
-      const supabase = createClient();
-      const { error: uploadError } = await supabase.storage
-        .from("recordings")
-        .upload(path, blob, { contentType: blob.type, upsert: true });
-      if (uploadError) throw uploadError;
-
-      await finalizeMeeting(meetingId, finalDurationSeconds);
-      router.push(`/meetings/${meetingId}`);
-    } catch (err) {
-      console.error("Failed to upload recording:", err);
-      setPhase("upload-error");
-      setEndDialogOpen(false);
-    } finally {
-      setEnding(false);
-    }
+    await finishUpload(finalDurationSeconds);
   }
 
   if (phase === "permission-error") {
@@ -187,11 +274,21 @@ export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; i
   }
 
   if (phase === "upload-error") {
+    // Audio uploads in ~30s chunks throughout the meeting, so most of the
+    // recording is already saved by the time this screen can even appear —
+    // only the most recent chunk(s) are actually at risk.
     return (
       <ErrorScreen
-        title="Your recording could not be uploaded."
-        description="Your audio is still in this browser tab. Retry the upload, or leave this page open and try again shortly."
-        action={{ label: "Retry Upload", onClick: () => handleConfirmEnd() }}
+        title="Part of your recording could not be saved."
+        description={
+          finalizeError ??
+          "Most of your recording already uploaded safely in the background. Retry to save the rest, or leave this page open and try again shortly."
+        }
+        action={{
+          label: ending ? "Retrying…" : "Retry",
+          onClick: () => finishUpload(durationSecondsRef.current),
+          disabled: ending,
+        }}
       />
     );
   }
@@ -240,6 +337,11 @@ export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; i
         <span className="font-mono text-4xl font-semibold tabular-nums text-foreground">
           {formatTimer(elapsed)}
         </span>
+        {stuckChunkCount > 0 && (
+          <span className="text-xs text-warning">
+            {stuckChunkCount} chunk{stuckChunkCount > 1 ? "s" : ""} retrying in background…
+          </span>
+        )}
       </div>
 
       <div className="flex flex-1 items-center justify-center py-10">
@@ -292,7 +394,7 @@ function ErrorScreen({
 }: {
   title: string;
   description?: string;
-  action: { label: string; onClick: () => void };
+  action: { label: string; onClick: () => void; disabled?: boolean };
 }) {
   return (
     <div className="mx-auto flex max-w-md flex-1 flex-col items-center justify-center gap-4 py-16 text-center">
@@ -301,7 +403,9 @@ function ErrorScreen({
       </div>
       <p className="text-base font-medium text-foreground">{title}</p>
       {description && <p className="text-sm text-muted-foreground">{description}</p>}
-      <Button onClick={action.onClick}>{action.label}</Button>
+      <Button onClick={action.onClick} disabled={action.disabled}>
+        {action.label}
+      </Button>
     </div>
   );
 }

@@ -13,3 +13,10 @@ export const MAX_MEETINGS_PER_DAY = 5;
 // Recordings older than this are auto-deleted from Storage; transcript/
 // summary/decisions/action items are kept indefinitely (Priority 4c).
 export const RECORDING_RETENTION_DAYS = 90;
+
+// Chunked recording upload (reliability fix): audio uploads in ~30s pieces
+// during the meeting instead of one file at the end, so a crash/network loss
+// only costs the most recent chunk instead of the whole recording.
+export const RECORDING_CHUNK_INTERVAL_MS = 30_000;
+export const RECORDING_CHUNK_INTERVAL_SECONDS = RECORDING_CHUNK_INTERVAL_MS / 1000;
+export const CHUNK_UPLOAD_RETRY_DELAYS_MS = [1_000, 3_000, 8_000];
