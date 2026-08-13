@@ -35,6 +35,7 @@ export interface Meeting {
   ended_at: string | null;
   duration: number | null;
   recording_url: string | null;
+  audio_deleted_at: string | null;
   created_by: string;
   processing_step: ProcessingStep | null;
   processing_error: string | null;

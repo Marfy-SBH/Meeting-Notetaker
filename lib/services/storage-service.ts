@@ -24,4 +24,9 @@ export class StorageService {
     if (error) throw error;
     return data.signedUrl;
   }
+
+  async deleteRecording(path: string) {
+    const { error } = await this.supabase.storage.from(BUCKET).remove([path]);
+    if (error) throw error;
+  }
 }

@@ -1,19 +1,22 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause, Volume2, VolumeX, Sparkles } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, Sparkles, Archive } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatTimer } from "@/lib/utils";
 import { useMeetingMedia } from "@/components/meetings/detail/meeting-media-context";
+import { RECORDING_RETENTION_DAYS } from "@/lib/constants";
 import type { ImportantMoment } from "@/lib/types";
 
 const SPEEDS = [0.5, 1, 1.25, 1.5, 2];
 
 export function RecordingTab({
   recordingUrl,
+  audioDeletedAt,
   moments,
 }: {
   recordingUrl: string | null;
+  audioDeletedAt?: string | null;
   moments: ImportantMoment[];
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -36,11 +39,38 @@ export function RecordingTab({
 
   if (!recordingUrl) {
     return (
-      <Card>
-        <CardContent className="p-8 text-center text-sm text-muted-foreground">
-          Recording is not available.
-        </CardContent>
-      </Card>
+      <div className="flex flex-col gap-5">
+        <Card>
+          <CardContent className="flex flex-col items-center gap-2 p-8 text-center">
+            <Archive className="h-5 w-5 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              {audioDeletedAt
+                ? `Original recording auto-deleted after ${RECORDING_RETENTION_DAYS} days per retention policy.`
+                : "Recording is not available."}
+            </p>
+          </CardContent>
+        </Card>
+        {moments.length > 0 && (
+          <Card>
+            <CardHeader><CardTitle>Important Moments</CardTitle></CardHeader>
+            <CardContent>
+              <ul className="flex flex-col divide-y divide-border">
+                {moments.map((m) => (
+                  <li key={m.id} className="flex items-start gap-3 py-2.5">
+                    <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
+                      <Sparkles className="h-3.5 w-3.5" /> {formatTimer(m.timestamp)}
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{m.title}</p>
+                      {m.description && <p className="text-xs text-muted-foreground">{m.description}</p>}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     );
   }
 

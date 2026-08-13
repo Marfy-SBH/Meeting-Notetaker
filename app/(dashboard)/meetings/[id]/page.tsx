@@ -38,7 +38,11 @@ export default async function MeetingDetailPage({ params }: { params: { id: stri
         }
         actionItems={<ActionItemsTab meetingId={meeting.id} items={meeting.action_items ?? []} />}
         recording={
-          <RecordingTab recordingUrl={meeting.recording_url} moments={meeting.important_moments ?? []} />
+          <RecordingTab
+            recordingUrl={meeting.recording_url}
+            audioDeletedAt={meeting.audio_deleted_at}
+            moments={meeting.important_moments ?? []}
+          />
         }
       />
     </div>

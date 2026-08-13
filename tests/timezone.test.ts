@@ -35,6 +35,7 @@ function baseMeeting(overrides: Partial<Meeting> = {}): Meeting {
     ended_at: null,
     duration: null,
     recording_url: null,
+    audio_deleted_at: null,
     created_by: "u1",
     processing_step: null,
     processing_error: null,

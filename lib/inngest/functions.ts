@@ -5,7 +5,9 @@ import { TranscriptionService } from "@/lib/services/transcription-service";
 import { AIAnalysisService } from "@/lib/services/ai-analysis-service";
 import { NotificationService } from "@/lib/services/notification-service";
 import { StorageService } from "@/lib/services/storage-service";
+import { RetentionService } from "@/lib/services/retention-service";
 import { meetingDateTime } from "@/lib/meeting-grouping";
+import { RECORDING_RETENTION_DAYS } from "@/lib/constants";
 
 export const sendMeetingReminders = inngest.createFunction(
   { id: "send-meeting-reminders" },
@@ -164,6 +166,19 @@ export const processMeeting = inngest.createFunction(
           message: `From "${meeting.title}"`,
         });
       }
+    });
+  }
+);
+
+export const cleanupExpiredRecordings = inngest.createFunction(
+  { id: "cleanup-expired-recordings" },
+  { cron: "0 3 * * *" },
+  async ({ step }) => {
+    return step.run("sweep", async () => {
+      const supabase = createServiceClient();
+      const retention = new RetentionService(supabase);
+      const threshold = new Date(Date.now() - RECORDING_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+      return retention.sweepExpiredRecordings(threshold);
     });
   }
 );
