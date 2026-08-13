@@ -105,6 +105,12 @@ export async function scheduleMeeting(formData: FormData) {
 
 export async function deleteScheduledMeeting(meetingId: string) {
   const supabase = await createClient();
-  await supabase.from("meetings").update({ status: "cancelled" }).eq("id", meetingId);
+  const { data, error } = await supabase
+    .from("meetings")
+    .update({ status: "cancelled" })
+    .eq("id", meetingId)
+    .select()
+    .single();
+  if (error || !data) throw new Error("Could not cancel this meeting.");
   revalidatePath("/calendar");
 }

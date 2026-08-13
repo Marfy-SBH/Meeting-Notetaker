@@ -23,11 +23,14 @@ export async function connectDemoIntegration(provider: IntegrationProvider) {
 export async function disconnectIntegration(provider: IntegrationProvider) {
   const { workspace } = await getCurrentUserAndWorkspace();
   const supabase = await createClient();
-  await supabase
+  const { data, error } = await supabase
     .from("integrations")
     .update({ status: "disconnected", access_token: null, refresh_token: null })
     .eq("workspace_id", workspace.id)
-    .eq("provider", provider);
+    .eq("provider", provider)
+    .select()
+    .single();
+  if (error || !data) throw new Error("Could not disconnect this integration.");
   revalidatePath("/integrations");
 }
 
@@ -41,10 +44,13 @@ export async function updateIntegrationSettings(provider: IntegrationProvider, s
     .eq("provider", provider)
     .single();
 
-  await supabase
+  const { data, error } = await supabase
     .from("integrations")
     .update({ settings: { ...(existing?.settings ?? {}), ...settings } })
     .eq("workspace_id", workspace.id)
-    .eq("provider", provider);
+    .eq("provider", provider)
+    .select()
+    .single();
+  if (error || !data) throw new Error("Could not update this integration's settings.");
   revalidatePath("/integrations");
 }

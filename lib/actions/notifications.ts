@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 
 export async function markNotificationRead(id: string) {
   const supabase = await createClient();
-  await supabase.from("notifications").update({ read: true }).eq("id", id);
+  const { data, error } = await supabase.from("notifications").update({ read: true }).eq("id", id).select().single();
+  if (error || !data) throw new Error("Could not update this notification.");
   revalidatePath("/", "layout");
 }
 

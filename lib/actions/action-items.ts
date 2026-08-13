@@ -10,12 +10,16 @@ export async function updateActionItem(
   fields: Partial<{ task: string; assignee: string | null; due_date: string | null; status: ActionItemStatus }>
 ) {
   const supabase = await createClient();
-  await supabase.from("action_items").update(fields).eq("id", id);
+  // .select().single() so an RLS-blocked update (item's meeting isn't in the
+  // caller's workspace) throws instead of silently affecting zero rows.
+  const { data, error } = await supabase.from("action_items").update(fields).eq("id", id).select().single();
+  if (error || !data) throw new Error("Could not update this action item.");
   revalidatePath(`/meetings/${meetingId}`);
 }
 
 export async function deleteActionItem(id: string, meetingId: string) {
   const supabase = await createClient();
-  await supabase.from("action_items").delete().eq("id", id);
+  const { data, error } = await supabase.from("action_items").delete().eq("id", id).select().single();
+  if (error || !data) throw new Error("Could not delete this action item.");
   revalidatePath(`/meetings/${meetingId}`);
 }
