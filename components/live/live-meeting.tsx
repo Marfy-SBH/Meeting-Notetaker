@@ -10,6 +10,7 @@ import { EndMeetingDialog } from "@/components/live/end-meeting-dialog";
 import { formatTimer } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { startMeeting, startExistingMeeting, getRecordingUploadTarget, finalizeMeeting } from "@/lib/actions/meetings";
+import { MAX_RECORDING_DURATION_SECONDS, RECORDING_WARNING_LEAD_SECONDS } from "@/lib/constants";
 
 type Phase = "setup" | "permission-error" | "start-error" | "live" | "ending" | "upload-error";
 
@@ -22,6 +23,7 @@ export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; i
   const [endDialogOpen, setEndDialogOpen] = useState(false);
   const [ending, setEnding] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [autoEndWarning, setAutoEndWarning] = useState(false);
 
   const meetingIdRef = useRef<string | null>(null);
   const workspaceIdRef = useRef<string | null>(null);
@@ -31,6 +33,7 @@ export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; i
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAtRef = useRef<number>(0);
   const pausedAccumRef = useRef<number>(0);
+  const autoEndedRef = useRef(false);
 
   useEffect(() => {
     function handleBeforeUnload(e: BeforeUnloadEvent) {
@@ -54,7 +57,21 @@ export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; i
   }, []);
 
   function tick() {
-    setElapsed(Math.floor((Date.now() - startedAtRef.current - pausedAccumRef.current) / 1000));
+    const elapsedSeconds = Math.floor((Date.now() - startedAtRef.current - pausedAccumRef.current) / 1000);
+    setElapsed(elapsedSeconds);
+
+    if (elapsedSeconds >= MAX_RECORDING_DURATION_SECONDS - RECORDING_WARNING_LEAD_SECONDS) {
+      setAutoEndWarning(true);
+    }
+
+    // A member might not be watching the screen when the cap is hit, so this
+    // actively ends and finalizes the meeting rather than just disabling a
+    // button and waiting for someone to notice.
+    if (!autoEndedRef.current && elapsedSeconds >= MAX_RECORDING_DURATION_SECONDS) {
+      autoEndedRef.current = true;
+      if (timerRef.current) clearInterval(timerRef.current);
+      handleConfirmEnd(elapsedSeconds);
+    }
   }
 
   async function handleStart() {
@@ -110,14 +127,16 @@ export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; i
     setLiveStatus("recording");
   }
 
-  async function handleConfirmEnd() {
+  async function handleConfirmEnd(overrideDurationSeconds?: number) {
     setEnding(true);
     const recorder = recorderRef.current;
     const meetingId = meetingIdRef.current;
     if (!recorder || !meetingId) return;
 
     if (timerRef.current) clearInterval(timerRef.current);
-    const finalDurationSeconds = elapsed;
+    // Prefer the value computed in the same tick that triggered an auto-end
+    // over the `elapsed` state, which may not have re-rendered yet.
+    const finalDurationSeconds = overrideDurationSeconds ?? elapsed;
 
     const stopped = new Promise<void>((resolve) => {
       recorder.onstop = () => resolve();
@@ -209,6 +228,12 @@ export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; i
 
   return (
     <div className="flex flex-1 flex-col">
+      {autoEndWarning && (
+        <div className="flex items-center justify-center gap-2 bg-warning/10 px-4 py-2 text-center text-sm font-medium text-warning">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          Recording will auto-end in {formatTimer(Math.max(0, MAX_RECORDING_DURATION_SECONDS - elapsed))}
+        </div>
+      )}
       <div className="flex flex-col items-center gap-2 border-b border-border py-8 sm:py-10">
         <h1 className="text-lg font-semibold text-foreground">{title || "Untitled Meeting"}</h1>
         <RecordingStatus status={liveStatus} />
