@@ -8,7 +8,7 @@ export const MAX_RECORDING_DURATION_SECONDS = MAX_RECORDING_DURATION_MINUTES * 6
 // auto-end, in seconds.
 export const RECORDING_WARNING_LEAD_SECONDS = 10 * 60;
 
-export const MAX_MEETINGS_PER_DAY = 5;
+export const MAX_MEETINGS_PER_DAY = 10;
 
 // Recordings older than this are auto-deleted from Storage; transcript/
 // summary/decisions/action items are kept indefinitely (Priority 4c).
