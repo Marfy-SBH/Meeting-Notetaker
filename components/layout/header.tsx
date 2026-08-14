@@ -137,13 +137,19 @@ export function Header({
               <Link href="/settings">Settings</Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <form action={signOut} className="w-full">
-              <DropdownMenuItem asChild>
-                <button type="submit" className="w-full text-left text-danger">
-                  Log out
-                </button>
-              </DropdownMenuItem>
-            </form>
+            <DropdownMenuItem
+              className="text-danger"
+              onSelect={() => {
+                // A native <form action={signOut}> submit button inside a Radix
+                // DropdownMenuItem is unreliable — Radix closes (unmounts, via
+                // Portal) the menu on selection, which can cancel the form
+                // submission before it completes. Invoking the action directly
+                // sidesteps that entirely.
+                void signOut();
+              }}
+            >
+              Log out
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
