@@ -47,6 +47,20 @@ export function withPlainErrors<Args extends unknown[], R>(
       return await fn(...args);
     } catch (err) {
       if (isNextControlFlowError(err)) throw err;
+      // Forensic log of exactly what was actually thrown, server-side, before
+      // conversion — if this exact "Only plain objects..." error is ever
+      // reported again, this line proves definitively whether it originated
+      // here (and what the raw value's real shape was) or somewhere Next.js
+      // itself never even reached this wrapper (e.g. a stale client-side
+      // action reference from a dev-mode HMR update to this file's exports).
+      console.error(
+        "[withPlainErrors] caught",
+        err?.constructor?.name,
+        "prototype===Error.prototype:",
+        Object.getPrototypeOf(err) === Error.prototype,
+        "raw:",
+        err
+      );
       throw toPlainError(err);
     }
   };
