@@ -8,8 +8,12 @@ import { StorageService } from "@/lib/services/storage-service";
 import { triggerMeetingProcessing } from "@/lib/actions/processing";
 import { MAX_RECORDING_DURATION_SECONDS, MAX_MEETINGS_PER_DAY } from "@/lib/constants";
 import { startOfDayInAppTz, endOfDayInAppTz } from "@/lib/meeting-grouping";
+import { withPlainErrors, toPlainError } from "@/lib/errors";
 
-export async function assertUnderDailyRecordingLimit(supabase: SupabaseClient, userId: string) {
+export const assertUnderDailyRecordingLimit = withPlainErrors(async function assertUnderDailyRecordingLimit(
+  supabase: SupabaseClient,
+  userId: string
+) {
   const now = new Date();
   const { count, error } = await supabase
     .from("meetings")
@@ -19,15 +23,15 @@ export async function assertUnderDailyRecordingLimit(supabase: SupabaseClient, u
     .gte("started_at", startOfDayInAppTz(now).toISOString())
     .lte("started_at", endOfDayInAppTz(now).toISOString());
 
-  if (error) throw new Error(`Failed to check today's recording count: ${error.message}`);
+  if (error) throw toPlainError(error, "Failed to check today's recording count.");
   if ((count ?? 0) >= MAX_MEETINGS_PER_DAY) {
     throw new Error(
       `You've reached today's limit of ${MAX_MEETINGS_PER_DAY} recorded meetings. This resets at midnight.`
     );
   }
-}
+});
 
-export async function startMeeting(title: string) {
+export const startMeeting = withPlainErrors(async function startMeeting(title: string) {
   const { user, workspace } = await getCurrentUserAndWorkspace();
   const supabase = await createClient();
   await assertUnderDailyRecordingLimit(supabase, user.id);
@@ -40,25 +44,28 @@ export async function startMeeting(title: string) {
   });
 
   return { meetingId: meeting.id, workspaceId: workspace.id };
-}
+});
 
-export async function startExistingMeeting(meetingId: string) {
+export const startExistingMeeting = withPlainErrors(async function startExistingMeeting(meetingId: string) {
   const { user, workspace } = await getCurrentUserAndWorkspace();
   const supabase = await createClient();
   await assertUnderDailyRecordingLimit(supabase, user.id);
   const meetingService = new MeetingService(supabase);
   await meetingService.startExisting(meetingId);
   return { meetingId, workspaceId: workspace.id };
-}
+});
 
-export async function getChunkUploadTarget(meetingId: string, seq: number) {
+export const getChunkUploadTarget = withPlainErrors(async function getChunkUploadTarget(
+  meetingId: string,
+  seq: number
+) {
   const { workspace } = await getCurrentUserAndWorkspace();
   const supabase = await createClient();
   const storage = new StorageService(supabase);
   return { path: storage.chunkPath(workspace.id, meetingId, seq) };
-}
+});
 
-export async function finalizeMeeting(
+export const finalizeMeeting = withPlainErrors(async function finalizeMeeting(
   meetingId: string,
   durationSeconds: number,
   chunkCount: number,
@@ -99,9 +106,9 @@ export async function finalizeMeeting(
     console.error(`Failed to trigger processing for meeting ${meetingId}:`, err);
     await meetingService.markFailed(meetingId, err instanceof Error ? err.message : "Failed to start AI processing.");
   }
-}
+});
 
-export async function cancelMeeting(meetingId: string) {
+export const cancelMeeting = withPlainErrors(async function cancelMeeting(meetingId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("meetings")
@@ -110,4 +117,4 @@ export async function cancelMeeting(meetingId: string) {
     .select()
     .single();
   if (error || !data) throw new Error("Could not cancel this meeting.");
-}
+});

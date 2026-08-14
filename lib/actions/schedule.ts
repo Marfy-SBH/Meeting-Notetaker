@@ -5,8 +5,9 @@ import { getCurrentUserAndWorkspace } from "@/lib/data/current";
 import { CalendarService } from "@/lib/services/calendar-service";
 import { fromZonedTime } from "date-fns-tz";
 import { revalidatePath } from "next/cache";
+import { withPlainErrors } from "@/lib/errors";
 
-export async function scheduleMeeting(formData: FormData) {
+export const scheduleMeeting = withPlainErrors(async function scheduleMeeting(formData: FormData) {
   // Called before the try block: redirect() throws a special Next.js signal
   // that must propagate untouched, not get swallowed as a generic error.
   const { user, workspace } = await getCurrentUserAndWorkspace();
@@ -107,9 +108,9 @@ export async function scheduleMeeting(formData: FormData) {
     console.error("scheduleMeeting: unexpected error", err);
     return { error: err instanceof Error ? err.message : "Something went wrong while scheduling the meeting." };
   }
-}
+});
 
-export async function deleteScheduledMeeting(meetingId: string) {
+export const deleteScheduledMeeting = withPlainErrors(async function deleteScheduledMeeting(meetingId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("meetings")
@@ -119,4 +120,4 @@ export async function deleteScheduledMeeting(meetingId: string) {
     .single();
   if (error || !data) throw new Error("Could not cancel this meeting.");
   revalidatePath("/calendar");
-}
+});

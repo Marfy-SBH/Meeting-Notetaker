@@ -1,5 +1,6 @@
 import { GoogleGenAI, createUserContent, createPartFromUri } from "@google/genai";
 import type { TranscriptLine } from "@/lib/ai/summarize";
+import { toPlainError } from "@/lib/errors";
 
 // Gemini natively handles audio input with strong multilingual coverage
 // (Bangla/English/Banglish), unlike Deepgram's nova-2 which is English-only.
@@ -24,26 +25,33 @@ function getClient() {
 
 // Post-meeting, batch transcription only — never called during a live meeting.
 export class TranscriptionService {
+  // Not reachable from a client-invoked Server Action today (only the
+  // Inngest background job calls this) — wrapped anyway so that stays true
+  // if this is ever called from one, and so failures are readable either way.
   async transcribe(audioUrl: string): Promise<TranscriptLine[]> {
-    if (!process.env.GEMINI_API_KEY) {
-      throw new Error("No transcription provider configured (GEMINI_API_KEY)");
+    try {
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error("No transcription provider configured (GEMINI_API_KEY)");
+      }
+
+      const audioResponse = await fetch(audioUrl);
+      const mimeType = audioResponse.headers.get("content-type") || "audio/webm";
+      const audioBlob = await audioResponse.blob();
+
+      const ai = getClient();
+      let file = await ai.files.upload({ file: audioBlob, config: { mimeType } });
+      file = await this.waitUntilReady(file.name!);
+
+      const response = await ai.models.generateContent({
+        model: MODEL,
+        contents: createUserContent([createPartFromUri(file.uri!, file.mimeType!), TRANSCRIPT_PROMPT]),
+        config: { responseMimeType: "application/json" },
+      });
+
+      return this.parseTranscript(response.text ?? "[]");
+    } catch (err) {
+      throw toPlainError(err, "Transcription failed.");
     }
-
-    const audioResponse = await fetch(audioUrl);
-    const mimeType = audioResponse.headers.get("content-type") || "audio/webm";
-    const audioBlob = await audioResponse.blob();
-
-    const ai = getClient();
-    let file = await ai.files.upload({ file: audioBlob, config: { mimeType } });
-    file = await this.waitUntilReady(file.name!);
-
-    const response = await ai.models.generateContent({
-      model: MODEL,
-      contents: createUserContent([createPartFromUri(file.uri!, file.mimeType!), TRANSCRIPT_PROMPT]),
-      config: { responseMimeType: "application/json" },
-    });
-
-    return this.parseTranscript(response.text ?? "[]");
   }
 
   private async waitUntilReady(fileName: string) {
@@ -63,7 +71,12 @@ export class TranscriptionService {
 
   private parseTranscript(raw: string): TranscriptLine[] {
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
-    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+    let parsed: any;
+    try {
+      parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+    } catch (err) {
+      throw toPlainError(err, "The transcription provider returned a response that couldn't be parsed as JSON.");
+    }
     if (!Array.isArray(parsed)) return [];
 
     return parsed

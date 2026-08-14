@@ -3,9 +3,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserAndWorkspace } from "@/lib/data/current";
 import { revalidatePath } from "next/cache";
+import { withPlainErrors } from "@/lib/errors";
 import type { IntegrationProvider } from "@/lib/types";
 
-export async function connectDemoIntegration(provider: IntegrationProvider) {
+export const connectDemoIntegration = withPlainErrors(async function connectDemoIntegration(
+  provider: IntegrationProvider
+) {
   const { workspace } = await getCurrentUserAndWorkspace();
   const supabase = await createClient();
   await supabase.from("integrations").upsert(
@@ -18,9 +21,11 @@ export async function connectDemoIntegration(provider: IntegrationProvider) {
     { onConflict: "workspace_id,provider" }
   );
   revalidatePath("/integrations");
-}
+});
 
-export async function disconnectIntegration(provider: IntegrationProvider) {
+export const disconnectIntegration = withPlainErrors(async function disconnectIntegration(
+  provider: IntegrationProvider
+) {
   const { workspace } = await getCurrentUserAndWorkspace();
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -32,9 +37,12 @@ export async function disconnectIntegration(provider: IntegrationProvider) {
     .single();
   if (error || !data) throw new Error("Could not disconnect this integration.");
   revalidatePath("/integrations");
-}
+});
 
-export async function updateIntegrationSettings(provider: IntegrationProvider, settings: Record<string, boolean>) {
+export const updateIntegrationSettings = withPlainErrors(async function updateIntegrationSettings(
+  provider: IntegrationProvider,
+  settings: Record<string, boolean>
+) {
   const { workspace } = await getCurrentUserAndWorkspace();
   const supabase = await createClient();
   const { data: existing } = await supabase
@@ -53,4 +61,4 @@ export async function updateIntegrationSettings(provider: IntegrationProvider, s
     .single();
   if (error || !data) throw new Error("Could not update this integration's settings.");
   revalidatePath("/integrations");
-}
+});

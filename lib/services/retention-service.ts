@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { StorageService } from "@/lib/services/storage-service";
+import { toPlainError } from "@/lib/errors";
 
 // Deletes recording audio past the retention window while leaving every
 // text-derived artifact (transcript_segments, summaries, meeting_minutes,
@@ -22,7 +23,7 @@ export class RetentionService {
       .select("id, recording_url, ended_at")
       .not("recording_url", "is", null)
       .lt("ended_at", olderThan.toISOString());
-    if (error) throw error;
+    if (error) throw toPlainError(error, "Failed to find expired recordings.");
     return data ?? [];
   }
 
@@ -32,7 +33,7 @@ export class RetentionService {
       .from("meetings")
       .update({ recording_url: null, audio_deleted_at: new Date().toISOString() })
       .eq("id", meetingId);
-    if (error) throw error;
+    if (error) throw toPlainError(error, "Failed to clear recording_url after deleting audio.");
   }
 
   async sweepExpiredRecordings(olderThan: Date) {

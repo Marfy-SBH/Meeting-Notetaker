@@ -2,8 +2,9 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { withPlainErrors } from "@/lib/errors";
 
-export async function signUp(formData: FormData) {
+export const signUp = withPlainErrors(async function signUp(formData: FormData) {
   const email = String(formData.get("email"));
   const password = String(formData.get("password"));
   const name = String(formData.get("name") ?? "");
@@ -17,9 +18,9 @@ export async function signUp(formData: FormData) {
 
   if (error) return { error: error.message };
   redirect("/dashboard");
-}
+});
 
-export async function signIn(formData: FormData) {
+export const signIn = withPlainErrors(async function signIn(formData: FormData) {
   const email = String(formData.get("email"));
   const password = String(formData.get("password"));
 
@@ -28,15 +29,15 @@ export async function signIn(formData: FormData) {
 
   if (error) return { error: error.message };
   redirect("/dashboard");
-}
+});
 
-export async function signOut() {
+export const signOut = withPlainErrors(async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/login");
-}
+});
 
-export async function requestPasswordReset(formData: FormData) {
+export const requestPasswordReset = withPlainErrors(async function requestPasswordReset(formData: FormData) {
   const email = String(formData.get("email"));
   const supabase = await createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -44,17 +45,17 @@ export async function requestPasswordReset(formData: FormData) {
   });
   if (error) return { error: error.message };
   return { success: true };
-}
+});
 
-export async function updatePassword(formData: FormData) {
+export const updatePassword = withPlainErrors(async function updatePassword(formData: FormData) {
   const password = String(formData.get("password"));
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password });
   if (error) return { error: error.message };
   redirect("/dashboard");
-}
+});
 
-export async function signInWithGoogle() {
+export const signInWithGoogle = withPlainErrors(async function signInWithGoogle() {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
@@ -64,4 +65,4 @@ export async function signInWithGoogle() {
     redirect("/login?error=google_signin_failed");
   }
   redirect(data.url);
-}
+});

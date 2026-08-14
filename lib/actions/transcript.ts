@@ -2,8 +2,13 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { withPlainErrors } from "@/lib/errors";
 
-export async function renameSpeaker(meetingId: string, oldName: string, newName: string) {
+export const renameSpeaker = withPlainErrors(async function renameSpeaker(
+  meetingId: string,
+  oldName: string,
+  newName: string
+) {
   const supabase = await createClient();
 
   // Zero rows updated is ambiguous here (could mean "no segment has this
@@ -22,4 +27,4 @@ export async function renameSpeaker(meetingId: string, oldName: string, newName:
     .eq("meeting_id", meetingId)
     .eq("speaker", oldName);
   revalidatePath(`/meetings/${meetingId}`);
-}
+});

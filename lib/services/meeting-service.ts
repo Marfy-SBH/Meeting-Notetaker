@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MeetingWithRelations } from "@/lib/types";
 import { StorageService } from "@/lib/services/storage-service";
+import { toPlainError } from "@/lib/errors";
 
 // Abstraction over meeting persistence so callers never touch raw table names directly.
 export class MeetingService {
@@ -17,7 +18,7 @@ export class MeetingService {
       .eq("workspace_id", workspaceId)
       .order("started_at", { ascending: false, nullsFirst: false })
       .order("scheduled_date", { ascending: false });
-    if (error) throw error;
+    if (error) throw toPlainError(error, "Failed to load meetings.");
     return data;
   }
 

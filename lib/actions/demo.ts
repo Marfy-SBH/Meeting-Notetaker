@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserAndWorkspace } from "@/lib/data/current";
 import { revalidatePath } from "next/cache";
+import { withPlainErrors } from "@/lib/errors";
 
 interface DemoMeetingSeed {
   title: string;
@@ -116,7 +117,7 @@ const DEMO_MEETINGS: DemoMeetingSeed[] = [
   },
 ];
 
-export async function seedDemoData() {
+export const seedDemoData = withPlainErrors(async function seedDemoData() {
   const { user, workspace } = await getCurrentUserAndWorkspace();
   const supabase = await createClient();
 
@@ -219,4 +220,4 @@ export async function seedDemoData() {
   });
 
   revalidatePath("/", "layout");
-}
+});

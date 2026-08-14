@@ -3,24 +3,25 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserAndWorkspace } from "@/lib/data/current";
 import { revalidatePath } from "next/cache";
+import { withPlainErrors } from "@/lib/errors";
 
-export async function updateProfile(formData: FormData) {
+export const updateProfile = withPlainErrors(async function updateProfile(formData: FormData) {
   const { user } = await getCurrentUserAndWorkspace();
   const supabase = await createClient();
   const name = String(formData.get("name") ?? "");
   await supabase.from("profiles").update({ name }).eq("id", user.id);
   revalidatePath("/settings");
-}
+});
 
-export async function updateWorkspaceName(formData: FormData) {
+export const updateWorkspaceName = withPlainErrors(async function updateWorkspaceName(formData: FormData) {
   const { workspace } = await getCurrentUserAndWorkspace();
   const supabase = await createClient();
   const name = String(formData.get("workspaceName") ?? "");
   await supabase.from("workspaces").update({ name }).eq("id", workspace.id);
   revalidatePath("/settings");
-}
+});
 
-export async function updateSettingsSection(
+export const updateSettingsSection = withPlainErrors(async function updateSettingsSection(
   section: "recording" | "ai" | "notifications" | "aiConfig",
   patch: Record<string, unknown>
 ) {
@@ -32,4 +33,4 @@ export async function updateSettingsSection(
   await supabase.from("profiles").update({ settings: updated }).eq("id", user.id);
   revalidatePath("/settings");
   revalidatePath("/integrations");
-}
+});

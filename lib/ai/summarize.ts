@@ -2,6 +2,7 @@
 // nothing outside this file should import an AI SDK directly.
 import { GoogleGenAI } from "@google/genai";
 import type { AiProvider } from "@/lib/types";
+import { toPlainError } from "@/lib/errors";
 
 // "gemini-2.5-flash" was retired for new API keys; the "-latest" alias tracks
 // whatever the current low-cost flash model is without needing code changes.
@@ -24,12 +25,20 @@ function getGeminiClient(apiKey?: string) {
 }
 
 async function generateWithGemini(apiKey: string | undefined, systemInstruction: string, prompt: string) {
-  const response = await getGeminiClient(apiKey).models.generateContent({
-    model: GEMINI_MODEL,
-    contents: prompt,
-    config: { systemInstruction, responseMimeType: "application/json" },
-  });
-  return response.text ?? "";
+  try {
+    const response = await getGeminiClient(apiKey).models.generateContent({
+      model: GEMINI_MODEL,
+      contents: prompt,
+      config: { systemInstruction, responseMimeType: "application/json" },
+    });
+    return response.text ?? "";
+  } catch (err) {
+    // The Gemini SDK throws its own error class instances — not reachable
+    // from a client-invoked Server Action today (only the Inngest background
+    // job calls this), but wrapped anyway so that stays true if this is ever
+    // called from one, and so callers get a readable message either way.
+    throw toPlainError(err, "Gemini request failed.");
+  }
 }
 
 async function generateWithOpenAi(apiKey: string, systemInstruction: string, prompt: string) {
@@ -184,7 +193,12 @@ const EMPTY_MINUTES: MinutesContent = { agenda: [], discussion: "", decisions: [
 
 function parseAnalysis(raw: string): MeetingAnalysis {
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+  let parsed: any;
+  try {
+    parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+  } catch (err) {
+    throw toPlainError(err, "The AI provider returned a response that couldn't be parsed as JSON.");
+  }
   return {
     summary: parsed.summary ?? { bn: "", en: "" },
     keyPoints: parsed.keyPoints ?? { bn: [], en: [] },
