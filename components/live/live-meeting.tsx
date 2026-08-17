@@ -22,8 +22,19 @@ import {
   CHUNK_UPLOAD_RETRY_DELAYS_MS,
 } from "@/lib/constants";
 import { retryWithBackoff } from "@/lib/retry";
+import { parseActionError, type CategorizedError, type ErrorCategory } from "@/lib/errors";
 
 type Phase = "setup" | "permission-error" | "start-error" | "live" | "ending" | "upload-error";
+
+// Short, plain-language headline per category — the de-emphasized line right
+// below it is the actual underlying error.message, not this headline.
+const CATEGORY_HEADLINES: Record<ErrorCategory, string> = {
+  network: "Network connection lost",
+  database: "Couldn't reach the database",
+  storage: "Couldn't reach file storage",
+  application: "Part of your recording is missing",
+  unknown: "Something went wrong saving your recording",
+};
 
 export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; initialTitle?: string }) {
   const router = useRouter();
@@ -33,10 +44,10 @@ export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; i
   const [elapsed, setElapsed] = useState(0);
   const [endDialogOpen, setEndDialogOpen] = useState(false);
   const [ending, setEnding] = useState(false);
-  const [startError, setStartError] = useState<string | null>(null);
+  const [startError, setStartError] = useState<CategorizedError | null>(null);
   const [autoEndWarning, setAutoEndWarning] = useState(false);
   const [stuckChunkCount, setStuckChunkCount] = useState(0);
-  const [finalizeError, setFinalizeError] = useState<string | null>(null);
+  const [finalizeError, setFinalizeError] = useState<CategorizedError | null>(null);
 
   const meetingIdRef = useRef<string | null>(null);
   const workspaceIdRef = useRef<string | null>(null);
@@ -178,7 +189,7 @@ export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; i
       setLiveStatus("recording");
     } catch (err) {
       stream.getTracks().forEach((t) => t.stop());
-      setStartError(err instanceof Error ? err.message : "Could not start this meeting.");
+      setStartError(parseActionError(err));
       setPhase("start-error");
     }
   }
@@ -225,7 +236,7 @@ export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; i
       router.push(`/meetings/${meetingId}`);
     } catch (err) {
       console.error("Failed to finalize recording:", err);
-      setFinalizeError(err instanceof Error ? err.message : "Your recording could not be uploaded.");
+      setFinalizeError(parseActionError(err));
       setPhase("upload-error");
       setEndDialogOpen(false);
     } finally {
@@ -267,7 +278,9 @@ export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; i
   if (phase === "start-error") {
     return (
       <ErrorScreen
-        title={startError ?? "Could not start this meeting."}
+        title={startError ? CATEGORY_HEADLINES[startError.category] : "Could not start this meeting."}
+        description={startError?.message}
+        error={startError}
         action={{ label: "Back", onClick: () => setPhase("setup") }}
       />
     );
@@ -279,11 +292,12 @@ export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; i
     // only the most recent chunk(s) are actually at risk.
     return (
       <ErrorScreen
-        title="Part of your recording could not be saved."
+        title={finalizeError ? CATEGORY_HEADLINES[finalizeError.category] : "Part of your recording could not be saved."}
         description={
-          finalizeError ??
+          finalizeError?.message ??
           "Most of your recording already uploaded safely in the background. Retry to save the rest, or leave this page open and try again shortly."
         }
+        error={finalizeError}
         action={{
           label: ending ? "Retrying…" : "Retry",
           onClick: () => finishUpload(durationSecondsRef.current),
@@ -390,10 +404,15 @@ export function LiveMeeting({ meetingId, initialTitle }: { meetingId?: string; i
 function ErrorScreen({
   title,
   description,
+  error,
   action,
 }: {
   title: string;
   description?: string;
+  // Present only for a categorized action error — renders a collapsed
+  // "Technical details" section underneath for debugging, not shown by
+  // default so a regular team member just sees the plain-language reason.
+  error?: CategorizedError | null;
   action: { label: string; onClick: () => void; disabled?: boolean };
 }) {
   return (
@@ -406,6 +425,22 @@ function ErrorScreen({
       <Button onClick={action.onClick} disabled={action.disabled}>
         {action.label}
       </Button>
+      {error && (
+        <details className="w-full text-left">
+          <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+            Technical details
+          </summary>
+          <div className="mt-2 space-y-1 rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+            <p>
+              <span className="font-medium text-foreground">Category:</span> {error.category}
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Time:</span> {error.timestamp}
+            </p>
+            <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono">{error.detail}</pre>
+          </div>
+        </details>
+      )}
     </div>
   );
 }
